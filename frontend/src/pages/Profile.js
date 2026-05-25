@@ -47,7 +47,7 @@ function Profile() {
       }
 
       const res = await axios.put(
-        `http://localhost:5000/api/auth/profile/${user.id}`,
+        `https://it-device-tracker.onrender.com/api/auth/profile/${user.id}`,
         data
       );
 
@@ -80,7 +80,7 @@ function Profile() {
 
     try {
       await axios.put(
-        `http://localhost:5000/api/auth/change-password/${user.id}`,
+        `https://it-device-tracker.onrender.com/api/auth/change-password/${user.id}`,
         {
           currentPassword: passwordForm.currentPassword,
           newPassword: passwordForm.newPassword,
