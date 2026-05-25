@@ -7,7 +7,7 @@ function Dashboard() {
   const [results, setResults] = useState([]);
 
   const loadDevices = async () => {
-    const res = await axios.get("http://localhost:5000/api/devices");
+    const res = await axios.get("https://it-device-tracker.onrender.com/api/devices");
     setDevices(res.data);
   };
 
@@ -22,7 +22,7 @@ function Dashboard() {
     }
 
     const res = await axios.get(
-      `http://localhost:5000/api/devices/search/${search}`
+      `https://it-device-tracker.onrender.com/api/devices/search/${search}`
     );
 
     setResults(res.data);

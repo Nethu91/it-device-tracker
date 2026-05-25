@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 
-const API = "http://localhost:5000/api/devices";
+const API = "https://it-device-tracker.onrender.com/api/devices";
 
 function DevicePage({ title, deviceType }) {
 

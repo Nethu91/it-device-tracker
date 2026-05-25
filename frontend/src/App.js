@@ -89,7 +89,7 @@ const formattedTime = currentTime.toLocaleTimeString("en-US", {
             <div className="user-box">
               {user.profilePicture ? (
                 <img
-                  src={`http://localhost:5000/uploads/${user.profilePicture}`}
+                  src={`https://it-device-tracker.onrender.com/uploads/${user.profilePicture}`}
                   alt="Profile"
                   className="sidebar-profile-img"
                 />

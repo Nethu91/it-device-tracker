@@ -103,7 +103,7 @@ function Profile() {
   };
 
   const imageUrl = user?.profilePicture
-    ? `http://localhost:5000/uploads/${user.profilePicture}`
+    ? `https://it-device-tracker.onrender.com/uploads/${user.profilePicture}`
     : null;
 
   return (
