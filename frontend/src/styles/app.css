@@ -1,0 +1,418 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Segoe UI", sans-serif;
+}
+
+body {
+  background: #f4f5f7;
+}
+
+.app {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebar {
+  width: 260px;
+  background: linear-gradient(180deg, #7a0000, #b30000);
+  padding: 20px;
+  position: fixed;
+  height: 100vh;
+  overflow-y: auto;
+  box-shadow: 4px 0 20px rgba(0, 0, 0, 0.15);
+}
+
+.logo-section {
+  text-align: center;
+  margin-bottom: 18px;
+}
+
+.logo {
+  width: 170px;
+  margin-bottom: 8px;
+}
+
+.logo-section h2 {
+  color: white;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.user-box {
+  background: rgba(255, 255, 255, 0.12);
+  padding: 16px;
+  border-radius: 16px;
+  margin-bottom: 24px;
+  text-align: center;
+  color: white;
+  backdrop-filter: blur(6px);
+}
+
+.avatar {
+  width: 55px;
+  height: 55px;
+  background: white;
+  color: #b30000;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 10px;
+  font-weight: bold;
+  font-size: 24px;
+}
+
+.user-box h4 {
+  margin-bottom: 3px;
+}
+
+.user-box p {
+  font-size: 13px;
+  opacity: 0.85;
+  margin-bottom: 10px;
+  text-transform: capitalize;
+}
+
+.user-box button {
+  width: 100%;
+  padding: 10px;
+  border: none;
+  border-radius: 10px;
+  background: white;
+  color: #b30000;
+  font-weight: 700;
+  cursor: pointer;
+  transition: 0.3s;
+}
+
+.user-box button:hover {
+  background: #ffe5e5;
+}
+
+.sidebar a {
+  display: block;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  text-decoration: none;
+  color: white;
+  border-radius: 12px;
+  transition: 0.3s;
+  font-weight: 500;
+}
+
+.sidebar a:hover {
+  background: rgba(255, 255, 255, 0.15);
+  transform: translateX(4px);
+}
+
+.main-content {
+  flex: 1;
+  margin-left: 260px;
+  padding: 25px;
+}
+
+.auth-content {
+  width: 100%;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.page-header h1 {
+  color: #8b0000;
+  font-size: 34px;
+  font-weight: 700;
+}
+
+.page-header span {
+  background: #b30000;
+  color: white;
+  padding: 8px 14px;
+  border-radius: 30px;
+  font-weight: 600;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 18px;
+  margin-bottom: 25px;
+}
+
+.dashboard-card {
+  background: white;
+  border-radius: 18px;
+  padding: 24px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.06);
+  border-left: 6px solid #8b0000;
+}
+
+.dashboard-card h3 {
+  color: #666;
+  margin-bottom: 10px;
+}
+
+.dashboard-card h1 {
+  color: #111;
+  font-size: 38px;
+}
+
+.green {
+  border-left-color: #16a34a;
+}
+
+.blue {
+  border-left-color: #2563eb;
+}
+
+.orange {
+  border-left-color: #ea580c;
+}
+
+.pro-card,
+.search-card,
+.table-card {
+  background: white;
+  border-radius: 18px;
+  padding: 22px;
+  margin-bottom: 22px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.05);
+}
+
+.device-form {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+
+.device-form input,
+.device-form select,
+.device-form textarea {
+  padding: 13px;
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  font-size: 14px;
+  transition: 0.3s;
+}
+
+.device-form input:focus,
+.device-form select:focus,
+.device-form textarea:focus {
+  border-color: #b30000;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(179, 0, 0, 0.1);
+}
+
+.device-form textarea {
+  grid-column: span 2;
+  height: 90px;
+  resize: none;
+}
+
+.form-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.btn-save {
+  background: #b30000;
+  color: white;
+  border: none;
+  padding: 12px 22px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: 0.3s;
+}
+
+.btn-save:hover {
+  background: #8b0000;
+}
+
+.btn-cancel {
+  background: #6b7280;
+  color: white;
+  border: none;
+  padding: 12px 22px;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.search-box {
+  display: flex;
+  gap: 12px;
+}
+
+.search-box input {
+  flex: 1;
+  padding: 13px;
+  border-radius: 12px;
+  border: 1px solid #d1d5db;
+}
+
+.search-box button {
+  background: #b30000;
+  color: white;
+  border: none;
+  padding: 13px 24px;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.table-card {
+  overflow-x: auto;
+}
+
+.device-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 1500px;
+}
+
+.device-table thead {
+  background: linear-gradient(90deg, #7a0000, #b30000);
+  color: white;
+}
+
+.device-table th,
+.device-table td {
+  padding: 14px;
+  text-align: left;
+}
+
+.device-table tbody tr {
+  border-bottom: 1px solid #eee;
+}
+
+.device-table tbody tr:hover {
+  background: #fff5f5;
+}
+
+.badge {
+  padding: 7px 12px;
+  border-radius: 30px;
+  font-size: 12px;
+  font-weight: 600;
+  color: white;
+}
+
+.available {
+  background: #16a34a;
+}
+
+.assigned {
+  background: #2563eb;
+}
+
+.in-repair {
+  background: #ea580c;
+}
+
+.retired {
+  background: #6b7280;
+}
+
+.missing {
+  background: #dc2626;
+}
+
+.btn-edit {
+  background: #2563eb;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 8px;
+  margin-right: 6px;
+  cursor: pointer;
+}
+
+.btn-delete {
+  background: #dc2626;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.no-data {
+  text-align: center;
+  color: #777;
+  padding: 25px;
+}
+
+@media (max-width: 1200px) {
+  .dashboard-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 900px) {
+  .sidebar {
+    width: 100%;
+    height: auto;
+    position: relative;
+  }
+
+  .main-content {
+    margin-left: 0;
+  }
+
+  .app {
+    flex-direction: column;
+  }
+
+  .device-form {
+    grid-template-columns: 1fr;
+  }
+
+  .device-form textarea {
+    grid-column: span 1;
+  }
+
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.sidebar-profile-img {
+  width: 55px;
+  height: 55px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid white;
+  margin-bottom: 10px;
+}
+
+.profile-btn {
+  background: rgba(255, 255, 255, 0.18) !important;
+  text-align: center;
+  margin-bottom: 10px !important;
+}
+.datetime-box {
+  background: rgba(255, 255, 255, 0.14);
+  color: white;
+  padding: 14px;
+  border-radius: 16px;
+  text-align: center;
+  margin-bottom: 18px;
+  backdrop-filter: blur(6px);
+}
+
+.datetime-box .time {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+.datetime-box .date {
+  font-size: 13px;
+  margin-top: 5px;
+  opacity: 0.9;
+}
