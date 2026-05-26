@@ -8,9 +8,8 @@ const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
 
+const { protect, adminOnly } = require("../middleware/authMiddleware");
 const User = require("../models/User");
-
-const ADMIN_SECRET = "swisstekadmin";
 
 const uploadDir = "uploads";
 
@@ -22,7 +21,6 @@ const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, "uploads/");
   },
-
   filename: function (req, file, cb) {
     cb(null, Date.now() + path.extname(file.originalname));
   },
@@ -30,56 +28,47 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
-// REGISTER
-router.post("/register", upload.single("profilePicture"), async (req, res) => {
-  try {
-    const { username, email, password, role, adminSecret } = req.body;
+// ADMIN ONLY REGISTER
+router.post(
+  "/register",
+  protect,
+  adminOnly,
+  upload.single("profilePicture"),
+  async (req, res) => {
+    try {
+      const { username, email, password, role } = req.body;
 
-    const existingUser = await User.findOne({ email });
+      const existingUser = await User.findOne({ email });
 
-    if (existingUser) {
-      return res.status(400).json({
-        message: "User already exists",
-      });
-    }
-
-    if (role === "admin") {
-      if (adminSecret !== ADMIN_SECRET) {
+      if (existingUser) {
         return res.status(400).json({
-          message: "Invalid admin secret",
+          message: "User already exists",
         });
       }
+
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      const user = new User({
+        username,
+        email,
+        password: hashedPassword,
+        role,
+        profilePicture: req.file ? req.file.filename : "",
+      });
+
+      await user.save();
+
+      res.status(201).json({
+        message: "User created successfully",
+      });
+    } catch (error) {
+      console.log("Register error:", error);
+      res.status(500).json({
+        message: "Server Error",
+      });
     }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    let profilePicture = "";
-
-    if (req.file) {
-      profilePicture = req.file.filename;
-    }
-
-    const user = new User({
-      username,
-      email,
-      password: hashedPassword,
-      role,
-      profilePicture,
-    });
-
-    await user.save();
-
-    res.status(201).json({
-      message: "User registered successfully",
-    });
-  } catch (error) {
-    console.log("Register error:", error);
-
-    res.status(500).json({
-      message: "Server Error",
-    });
   }
-});
+);
 
 // LOGIN
 router.post("/login", async (req, res) => {
@@ -107,7 +96,7 @@ router.post("/login", async (req, res) => {
         id: user._id,
         role: user.role,
       },
-      "jwtSecret",
+      process.env.JWT_SECRET || "jwtSecret",
       {
         expiresIn: "7d",
       }
@@ -128,7 +117,6 @@ router.post("/login", async (req, res) => {
     });
   } catch (error) {
     console.log("Login error:", error);
-
     res.status(500).json({
       message: "Server Error",
     });
@@ -179,7 +167,6 @@ router.put("/profile/:id", upload.single("profilePicture"), async (req, res) => 
     });
   } catch (error) {
     console.log("Profile update error:", error);
-
     res.status(500).json({
       message: "Profile update failed",
       error: error.message,
@@ -209,7 +196,6 @@ router.put("/change-password/:id", async (req, res) => {
     }
 
     user.password = await bcrypt.hash(newPassword, 10);
-
     await user.save();
 
     res.json({
@@ -217,7 +203,6 @@ router.put("/change-password/:id", async (req, res) => {
     });
   } catch (error) {
     console.log("Password change error:", error);
-
     res.status(500).json({
       message: "Password change failed",
       error: error.message,

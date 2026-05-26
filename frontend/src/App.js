@@ -27,7 +27,7 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Profile from "./pages/Profile";
 import "./styles/app.css";
-
+import Users from "./pages/Users";
 
 function Layout() {
   const location = useLocation();
@@ -66,7 +66,7 @@ const formattedTime = currentTime.toLocaleTimeString("en-US", {
     localStorage.removeItem("user");
     window.location.href = "/login";
   };
-
+const isAdmin = user?.role === "admin";
   return (
     <div className="app">
       {!hideSidebar && (
@@ -84,7 +84,7 @@ const formattedTime = currentTime.toLocaleTimeString("en-US", {
 
             <h2>IT Device Tracker</h2>
           </div>
-
+{isAdmin && <Link to="/users">User Management</Link>}
           {user && (
             <div className="user-box">
               {user.profilePicture ? (
@@ -156,7 +156,7 @@ const formattedTime = currentTime.toLocaleTimeString("en-US", {
 
           <Route path="/profile" element={<Profile />} />
           <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
+          <Route path="/users" element={<Users />} />
         </Routes>
       </div>
     </div>
