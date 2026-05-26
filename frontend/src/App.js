@@ -5,6 +5,7 @@ import {
   Route,
   Link,
   useLocation,
+  Navigate,
 } from "react-router-dom";
 
 import Dashboard from "./pages/Dashboard";
@@ -24,57 +25,57 @@ import PortableTrackers from "./pages/PortableTrackers";
 import FingerprintMachines from "./pages/FingerprintMachines";
 
 import Login from "./pages/Login";
-
 import Profile from "./pages/Profile";
-import "./styles/app.css";
 import Users from "./pages/Users";
+
+import "./styles/app.css";
 
 function Layout() {
   const location = useLocation();
 
-  const hideSidebar =
-    location.pathname === "/login" 
-    
+  const hideSidebar = location.pathname === "/login";
 
   const user = JSON.parse(localStorage.getItem("user"));
+  const isAdmin = user?.role === "admin";
 
   const [currentTime, setCurrentTime] = useState(new Date());
 
-useEffect(() => {
-  const timer = setInterval(() => {
-    setCurrentTime(new Date());
-  }, 1000);
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
 
-  return () => clearInterval(timer);
-}, []);
+    return () => clearInterval(timer);
+  }, []);
 
-const formattedDate = currentTime.toLocaleDateString("en-GB", {
-  weekday: "short",
-  year: "numeric",
-  month: "short",
-  day: "2-digit",
-});
+  const formattedDate = currentTime.toLocaleDateString("en-GB", {
+    weekday: "short",
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+  });
 
-const formattedTime = currentTime.toLocaleTimeString("en-US", {
-  hour: "2-digit",
-  minute: "2-digit",
-  second: "2-digit",
-});
+  const formattedTime = currentTime.toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
 
   const logout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     window.location.href = "/login";
   };
-const isAdmin = user?.role === "admin";
+
   return (
     <div className="app">
       {!hideSidebar && (
         <div className="sidebar">
           <div className="datetime-box">
-  <div className="time">{formattedTime}</div>
-  <div className="date">{formattedDate}</div>
-</div>
+            <div className="time">{formattedTime}</div>
+            <div className="date">{formattedDate}</div>
+          </div>
+
           <div className="logo-section">
             <img
               src="/swisstekaluminiumlogo.png"
@@ -84,7 +85,7 @@ const isAdmin = user?.role === "admin";
 
             <h2>IT Device Tracker</h2>
           </div>
-{isAdmin && <Link to="/users">User Management</Link>}
+
           {user && (
             <div className="user-box">
               {user.profilePicture ? (
@@ -111,6 +112,9 @@ const isAdmin = user?.role === "admin";
           )}
 
           <Link to="/">Dashboard</Link>
+
+          {isAdmin && <Link to="/users">User Management</Link>}
+
           <Link to="/desktops">Desktops</Link>
           <Link to="/laptops">Laptops</Link>
           <Link to="/tablets">Tablets</Link>
@@ -156,7 +160,12 @@ const isAdmin = user?.role === "admin";
 
           <Route path="/profile" element={<Profile />} />
           <Route path="/login" element={<Login />} />
-          <Route path="/users" element={<Users />} />
+          <Route
+            path="/users"
+            element={isAdmin ? <Users /> : <Navigate to="/" />}
+          />
+
+          <Route path="*" element={<Navigate to="/login" />} />
         </Routes>
       </div>
     </div>
