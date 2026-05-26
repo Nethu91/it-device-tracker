@@ -24,7 +24,7 @@ import PortableTrackers from "./pages/PortableTrackers";
 import FingerprintMachines from "./pages/FingerprintMachines";
 
 import Login from "./pages/Login";
-import Register from "./pages/Register";
+
 import Profile from "./pages/Profile";
 import "./styles/app.css";
 import Users from "./pages/Users";
@@ -33,8 +33,8 @@ function Layout() {
   const location = useLocation();
 
   const hideSidebar =
-    location.pathname === "/login" ||
-    location.pathname === "/register";
+    location.pathname === "/login" 
+    
 
   const user = JSON.parse(localStorage.getItem("user"));
 
