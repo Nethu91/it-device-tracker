@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import * as XLSX from "xlsx";
 
-const DEVICE_API = "http://localhost:5000/api/devices";
+const DEVICE_API = "https://it-device-tracker.onrender.com/api/devices";
 const EMPLOYEE_API = "http://localhost:5000/api/employees";
 
 function DevicePage({ title, deviceType }) {
