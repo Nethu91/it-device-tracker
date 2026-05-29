@@ -1,30 +1,49 @@
 const mongoose = require("mongoose");
 
-const employeeSchema = new mongoose.Schema({
-  userName: {
-    type: String,
-    required: true,
+const employeeSchema = new mongoose.Schema(
+  {
+    FirstName: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
+    SecondName: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
+    FullName: {
+      type: String,
+      trim: true,
+    },
+
+    EPFNumber: {
+      type: Number,
+      required: true,
+      unique: true,
+    },
+
+    Department: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
+    Location: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
+    Status: {
+      type: String,
+      enum: ["Active", "Inactive"],
+      default: "Active",
+    },
   },
-  epfNumber: {
-    type: String,
-    required: true,
-    unique: true,
-  },
-  designation: String,
-  department: String,
-  location: String,
-  contactNumber: String,
-  email: String,
-  status: {
-    type: String,
-    default: "Active",
-  },
-  createdAt: {
-    type: String,
-  },
-  updatedAt: {
-    type: String,
-  },
-});
+  { timestamps: true }
+);
 
 module.exports = mongoose.model("Employee", employeeSchema);

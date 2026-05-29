@@ -12,8 +12,7 @@ import Dashboard from "./pages/Dashboard";
 import Desktops from "./pages/Desktops";
 import Laptops from "./pages/Laptops";
 import Tablets from "./pages/Tablets";
-import Dongles from "./pages/Dongles";
-import Smartphones from "./pages/Smartphones";
+import SIM from "./pages/SIM";
 import Printers from "./pages/Printers";
 import Switches from "./pages/Switches";
 import Servers from "./pages/Servers";
@@ -27,15 +26,18 @@ import FingerprintMachines from "./pages/FingerprintMachines";
 import Login from "./pages/Login";
 import Profile from "./pages/Profile";
 import Users from "./pages/Users";
+import Employees from "./pages/Employees";
 
 import "./styles/app.css";
 
 function Layout() {
   const location = useLocation();
-
   const hideSidebar = location.pathname === "/login";
 
-  const user = JSON.parse(localStorage.getItem("user"));
+  const user = JSON.parse(localStorage.getItem("user")) || {
+  username: "Admin",
+  role: "admin",
+};
   const isAdmin = user?.role === "admin";
 
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -82,7 +84,6 @@ function Layout() {
               alt="Swisstek"
               className="logo"
             />
-
             <h2>IT Device Tracker</h2>
           </div>
 
@@ -113,13 +114,13 @@ function Layout() {
 
           <Link to="/">Dashboard</Link>
 
+          {isAdmin && <Link to="/employees">Employee Management</Link>}
           {isAdmin && <Link to="/users">User Management</Link>}
 
           <Link to="/desktops">Desktops</Link>
           <Link to="/laptops">Laptops</Link>
           <Link to="/tablets">Tablets</Link>
-          <Link to="/dongles">Dongles</Link>
-          <Link to="/smartphones">Smartphones</Link>
+         <Link to="/dongles">SIM</Link>
           <Link to="/printers">Printers</Link>
           <Link to="/switches">Switches</Link>
           <Link to="/servers">Servers</Link>
@@ -128,20 +129,28 @@ function Layout() {
           <Link to="/ups">UPS</Link>
           <Link to="/smart-boards">Smart Boards</Link>
           <Link to="/portable-trackers">Portable Trackers</Link>
-          <Link to="/fingerprint-machines">
-            Fingerprint Machines
-          </Link>
+          <Link to="/fingerprint-machines">Fingerprint Machines</Link>
         </div>
       )}
 
       <div className={hideSidebar ? "auth-content" : "main-content"}>
         <Routes>
           <Route path="/" element={<Dashboard />} />
+
+          <Route
+            path="/employees"
+            element={isAdmin ? <Employees /> : <Navigate to="/" />}
+          />
+
+          <Route
+            path="/users"
+            element={isAdmin ? <Users /> : <Navigate to="/" />}
+          />
+
           <Route path="/desktops" element={<Desktops />} />
           <Route path="/laptops" element={<Laptops />} />
           <Route path="/tablets" element={<Tablets />} />
-          <Route path="/dongles" element={<Dongles />} />
-          <Route path="/smartphones" element={<Smartphones />} />
+          <Route path="/dongles" element={<SIM />} />
           <Route path="/printers" element={<Printers />} />
           <Route path="/switches" element={<Switches />} />
           <Route path="/servers" element={<Servers />} />
@@ -149,10 +158,7 @@ function Layout() {
           <Route path="/wireless-ap" element={<WirelessAP />} />
           <Route path="/ups" element={<UPS />} />
           <Route path="/smart-boards" element={<SmartBoards />} />
-          <Route
-            path="/portable-trackers"
-            element={<PortableTrackers />}
-          />
+          <Route path="/portable-trackers" element={<PortableTrackers />} />
           <Route
             path="/fingerprint-machines"
             element={<FingerprintMachines />}
@@ -160,10 +166,6 @@ function Layout() {
 
           <Route path="/profile" element={<Profile />} />
           <Route path="/login" element={<Login />} />
-          <Route
-            path="/users"
-            element={isAdmin ? <Users /> : <Navigate to="/" />}
-          />
 
           <Route path="*" element={<Navigate to="/login" />} />
         </Routes>

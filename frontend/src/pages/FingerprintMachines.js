@@ -1,7 +1,12 @@
 import DevicePage from "../components/DevicePage";
 
 function FingerprintMachines() {
-  return <DevicePage title="Fingerprint Machines" deviceType="Fingerprint_Machine" />;
+  return (
+    <DevicePage
+      title="Fingerprint Machines"
+      deviceType="Fingerprint Machine"
+    />
+  );
 }
 
 export default FingerprintMachines;
