@@ -3,7 +3,7 @@ import axios from "axios";
 import * as XLSX from "xlsx";
 
 const DEVICE_API = "https://it-device-tracker.onrender.com/api/devices";
-const EMPLOYEE_API = "http://localhost:5000/api/employees";
+const EMPLOYEE_API = "https://it-device-tracker.onrender.com/api/employees";
 
 function DevicePage({ title, deviceType }) {
   const isComputerDevice = deviceType === "Laptop" || deviceType === "Desktop";

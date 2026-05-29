@@ -1,15 +1,37 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import "../styles/auth.css";
 
+import { useMsal } from "@azure/msal-react";
+import { loginRequest } from "../auth/msalConfig";
+
 function Login() {
   const navigate = useNavigate();
+  const { instance, accounts } = useMsal();
 
   const [form, setForm] = useState({
     email: "",
     password: "",
   });
+
+  useEffect(() => {
+    const microsoftAccount = accounts[0];
+
+    if (microsoftAccount) {
+      const microsoftUser = {
+        username: microsoftAccount.name,
+        email: microsoftAccount.username,
+        role: "admin",
+        loginType: "Microsoft",
+      };
+
+      localStorage.setItem("user", JSON.stringify(microsoftUser));
+      localStorage.setItem("token", microsoftAccount.idTokenClaims?.aud || "microsoft-token");
+
+      navigate("/", { replace: true });
+    }
+  }, [accounts, navigate]);
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -19,14 +41,26 @@ function Login() {
     e.preventDefault();
 
     try {
-      const res = await axios.post("https://it-device-tracker.onrender.com/api/auth/login", form);
+      const res = await axios.post(
+        "https://it-device-tracker.onrender.com/api/auth/login",
+        form
+      );
 
       localStorage.setItem("token", res.data.token);
       localStorage.setItem("user", JSON.stringify(res.data.user));
 
-      navigate("/");
+      navigate("/", { replace: true });
     } catch (err) {
       alert(err.response?.data?.message || "Login failed");
+    }
+  };
+
+  const handleMicrosoftLogin = async () => {
+    try {
+      await instance.loginRedirect(loginRequest);
+    } catch (err) {
+      console.error("Microsoft login error:", err);
+      alert(err.message || "Microsoft login failed");
     }
   };
 
@@ -60,7 +94,17 @@ function Login() {
           <button type="submit">Sign In</button>
         </form>
 
-       
+        <div className="login-divider">
+          <span>OR</span>
+        </div>
+
+        <button
+          type="button"
+          className="microsoft-btn"
+          onClick={handleMicrosoftLogin}
+        >
+          Sign in with Microsoft
+        </button>
       </div>
     </div>
   );

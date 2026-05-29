@@ -68,3 +68,34 @@
   font-weight: bold;
   text-decoration: none;
 }
+.login-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 0;
+  color: #777;
+  font-size: 13px;
+}
+
+.login-divider::before,
+.login-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: #ddd;
+}
+
+.microsoft-btn {
+  width: 100%;
+  padding: 13px;
+  border: none;
+  border-radius: 10px;
+  background: #2f2f2f;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.microsoft-btn:hover {
+  background: #111;
+}

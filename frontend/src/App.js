@@ -7,6 +7,7 @@ import {
   useLocation,
   Navigate,
 } from "react-router-dom";
+import { useMsal } from "@azure/msal-react";
 
 import Dashboard from "./pages/Dashboard";
 import Desktops from "./pages/Desktops";
@@ -22,22 +23,19 @@ import UPS from "./pages/UPS";
 import SmartBoards from "./pages/SmartBoards";
 import PortableTrackers from "./pages/PortableTrackers";
 import FingerprintMachines from "./pages/FingerprintMachines";
-
 import Login from "./pages/Login";
 import Profile from "./pages/Profile";
 import Users from "./pages/Users";
 import Employees from "./pages/Employees";
-
 import "./styles/app.css";
 
 function Layout() {
   const location = useLocation();
-  const hideSidebar = location.pathname === "/login";
+  const { instance } = useMsal();
 
-  const user = JSON.parse(localStorage.getItem("user")) || {
-  username: "Admin",
-  role: "admin",
-};
+  const hideSidebar = location.pathname === "/login";
+  const token = localStorage.getItem("token");
+  const user = JSON.parse(localStorage.getItem("user"));
   const isAdmin = user?.role === "admin";
 
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -49,6 +47,14 @@ function Layout() {
 
     return () => clearInterval(timer);
   }, []);
+
+  if (!token && location.pathname !== "/login") {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (token && location.pathname === "/login") {
+    return <Navigate to="/" replace />;
+  }
 
   const formattedDate = currentTime.toLocaleDateString("en-GB", {
     weekday: "short",
@@ -63,10 +69,20 @@ function Layout() {
     second: "2-digit",
   });
 
-  const logout = () => {
+  const logout = async () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
-    window.location.href = "/login";
+
+    const accounts = instance.getAllAccounts();
+
+    if (accounts.length > 0) {
+      await instance.logoutRedirect({
+        account: accounts[0],
+        postLogoutRedirectUri: "/login",
+      });
+    } else {
+      window.location.href = "/login";
+    }
   };
 
   return (
@@ -120,14 +136,14 @@ function Layout() {
           <Link to="/desktops">Desktops</Link>
           <Link to="/laptops">Laptops</Link>
           <Link to="/tablets">Tablets</Link>
-         <Link to="/dongles">SIM</Link>
+          <Link to="/dongles">SIM</Link>
           <Link to="/printers">Printers</Link>
           <Link to="/switches">Switches</Link>
           <Link to="/servers">Servers</Link>
           <Link to="/projectors">Projectors</Link>
           <Link to="/wireless-ap">Wireless AP</Link>
           <Link to="/ups">UPS</Link>
-          <Link to="/smart-boards">Smart Boards</Link>
+          <Link to="/smart-boards">Smart Board & TV & Monitor</Link>
           <Link to="/portable-trackers">Portable Trackers</Link>
           <Link to="/fingerprint-machines">Fingerprint Machines</Link>
         </div>
@@ -139,12 +155,12 @@ function Layout() {
 
           <Route
             path="/employees"
-            element={isAdmin ? <Employees /> : <Navigate to="/" />}
+            element={isAdmin ? <Employees /> : <Navigate to="/" replace />}
           />
 
           <Route
             path="/users"
-            element={isAdmin ? <Users /> : <Navigate to="/" />}
+            element={isAdmin ? <Users /> : <Navigate to="/" replace />}
           />
 
           <Route path="/desktops" element={<Desktops />} />
@@ -163,11 +179,10 @@ function Layout() {
             path="/fingerprint-machines"
             element={<FingerprintMachines />}
           />
-
           <Route path="/profile" element={<Profile />} />
           <Route path="/login" element={<Login />} />
 
-          <Route path="*" element={<Navigate to="/login" />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>
     </div>
