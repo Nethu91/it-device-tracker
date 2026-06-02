@@ -209,5 +209,68 @@ router.put("/change-password/:id", async (req, res) => {
     });
   }
 });
+router.post("/microsoft-login", async (req, res) => {
+  try {
+    const { name, email } = req.body;
 
+    if (!email) {
+      return res.status(400).json({
+        message: "Email is required",
+      });
+    }
+
+    let user = await User.findOne({ email });
+
+    if (!user) {
+      const hashedPassword = await bcrypt.hash(
+        "Microsoft@123",
+        10
+      );
+
+      user = new User({
+        username: name || email.split("@")[0],
+        email,
+        password: hashedPassword,
+        role: "admin",
+        phone: "",
+        department: "",
+        position: "",
+      });
+
+      await user.save();
+    }
+
+    const token = jwt.sign(
+      {
+        id: user._id,
+        role: user.role,
+      },
+      process.env.JWT_SECRET || "jwtSecret",
+      {
+        expiresIn: "7d",
+      }
+    );
+
+    res.json({
+      token,
+      user: {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        phone: user.phone,
+        department: user.department,
+        position: user.position,
+        profilePicture: user.profilePicture,
+      },
+    });
+  } catch (error) {
+    console.log("Microsoft login error:", error);
+
+    res.status(500).json({
+      message: "Microsoft login failed",
+      error: error.message,
+    });
+  }
+});
 module.exports = router;

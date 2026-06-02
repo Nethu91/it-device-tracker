@@ -6,6 +6,8 @@ import "../styles/auth.css";
 import { useMsal } from "@azure/msal-react";
 import { loginRequest } from "../auth/msalConfig";
 
+const API_URL = "https://it-device-tracker.onrender.com/api";
+
 function Login() {
   const navigate = useNavigate();
   const { instance, accounts } = useMsal();
@@ -16,21 +18,28 @@ function Login() {
   });
 
   useEffect(() => {
-    const microsoftAccount = accounts[0];
+    const microsoftBackendLogin = async () => {
+      const microsoftAccount = accounts[0];
 
-    if (microsoftAccount) {
-      const microsoftUser = {
-        username: microsoftAccount.name,
-        email: microsoftAccount.username,
-        role: "admin",
-        loginType: "Microsoft",
-      };
+      if (!microsoftAccount) return;
 
-      localStorage.setItem("user", JSON.stringify(microsoftUser));
-      localStorage.setItem("token", microsoftAccount.idTokenClaims?.aud || "microsoft-token");
+      try {
+        const res = await axios.post(`${API_URL}/auth/microsoft-login`, {
+          name: microsoftAccount.name,
+          email: microsoftAccount.username,
+        });
 
-      navigate("/", { replace: true });
-    }
+        localStorage.setItem("token", res.data.token);
+        localStorage.setItem("user", JSON.stringify(res.data.user));
+
+        navigate("/", { replace: true });
+      } catch (err) {
+        console.error("Microsoft backend login error:", err);
+        alert(err.response?.data?.message || "Microsoft backend login failed");
+      }
+    };
+
+    microsoftBackendLogin();
   }, [accounts, navigate]);
 
   const handleChange = (e) => {
@@ -41,10 +50,7 @@ function Login() {
     e.preventDefault();
 
     try {
-      const res = await axios.post(
-        "https://it-device-tracker.onrender.com/api/auth/login",
-        form
-      );
+      const res = await axios.post(`${API_URL}/auth/login`, form);
 
       localStorage.setItem("token", res.data.token);
       localStorage.setItem("user", JSON.stringify(res.data.user));
