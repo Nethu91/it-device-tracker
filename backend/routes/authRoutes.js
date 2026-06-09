@@ -10,6 +10,7 @@ const fs = require("fs");
 
 const { protect, adminOnly } = require("../middleware/authMiddleware");
 const User = require("../models/User");
+const verifyMicrosoftToken = require("../middleware/microsoftVerify");
 
 const uploadDir = "uploads";
 
@@ -21,6 +22,7 @@ const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, "uploads/");
   },
+
   filename: function (req, file, cb) {
     cb(null, Date.now() + path.extname(file.originalname));
   },
@@ -28,7 +30,37 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
-// ADMIN ONLY REGISTER
+const createAppToken = (user) => {
+  return jwt.sign(
+    {
+      id: user._id,
+      role: user.role,
+      email: user.email,
+    },
+    process.env.JWT_SECRET || "jwtSecret",
+    {
+      expiresIn: "7d",
+    }
+  );
+};
+
+const formatUser = (user) => ({
+  id: user._id,
+  username: user.username,
+  email: user.email,
+  role: user.role,
+  phone: user.phone || "",
+  department: user.department || "",
+  position: user.position || "",
+  profilePicture: user.profilePicture || "",
+  authProvider: user.authProvider || "local",
+});
+
+/* =========================================
+   ADMIN ONLY REGISTER
+   Used by User Management
+========================================= */
+
 router.post(
   "/register",
   protect,
@@ -36,9 +68,20 @@ router.post(
   upload.single("profilePicture"),
   async (req, res) => {
     try {
-      const { username, email, password, role } = req.body;
+      const { username, email, password, role, phone, department, position } =
+        req.body;
 
-      const existingUser = await User.findOne({ email });
+      if (!username || !email || !password) {
+        return res.status(400).json({
+          message: "Username, email and password are required",
+        });
+      }
+
+      const normalizedEmail = email.toLowerCase().trim();
+
+      const existingUser = await User.findOne({
+        email: normalizedEmail,
+      });
 
       if (existingUser) {
         return res.status(400).json({
@@ -49,37 +92,69 @@ router.post(
       const hashedPassword = await bcrypt.hash(password, 10);
 
       const user = new User({
-        username,
-        email,
+        username: username.trim(),
+        email: normalizedEmail,
         password: hashedPassword,
-        role,
+        role: role || "user",
+        phone: phone || "",
+        department: department || "",
+        position: position || "",
         profilePicture: req.file ? req.file.filename : "",
+        authProvider: "local",
       });
 
       await user.save();
 
       res.status(201).json({
         message: "User created successfully",
+        user: formatUser(user),
       });
     } catch (error) {
       console.log("Register error:", error);
+
       res.status(500).json({
         message: "Server Error",
+        error: error.message,
       });
     }
   }
 );
 
-// LOGIN
+/* =========================================
+   EMAIL PASSWORD LOGIN
+========================================= */
+
 router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    const user = await User.findOne({ email });
+    if (!email) {
+      return res.status(400).json({
+        message: "Email is required",
+      });
+    }
+
+    if (!password) {
+      return res.status(400).json({
+        message: "Password is required",
+      });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+
+    const user = await User.findOne({
+      email: normalizedEmail,
+    });
 
     if (!user) {
       return res.status(400).json({
         message: "Invalid email",
+      });
+    }
+
+    if (user.authProvider === "microsoft" || !user.password) {
+      return res.status(400).json({
+        message: "Please login with Microsoft",
       });
     }
 
@@ -91,99 +166,281 @@ router.post("/login", async (req, res) => {
       });
     }
 
-    const token = jwt.sign(
-      {
-        id: user._id,
-        role: user.role,
-      },
-      process.env.JWT_SECRET || "jwtSecret",
-      {
-        expiresIn: "7d",
-      }
-    );
+    const token = createAppToken(user);
 
     res.json({
+      message: "Login successful",
       token,
-      user: {
-        id: user._id,
-        username: user.username,
-        email: user.email,
-        role: user.role,
-        phone: user.phone,
-        department: user.department,
-        position: user.position,
-        profilePicture: user.profilePicture,
-      },
+      user: formatUser(user),
     });
   } catch (error) {
     console.log("Login error:", error);
+
     res.status(500).json({
       message: "Server Error",
+      error: error.message,
     });
   }
 });
 
-// UPDATE PROFILE
-router.put("/profile/:id", upload.single("profilePicture"), async (req, res) => {
+/* =========================================
+   SECURE MICROSOFT LOGIN
+   Only User Management approved users can login
+========================================= */
+
+router.post("/microsoft-login", async (req, res) => {
   try {
-    const { username, email, phone, department, position } = req.body;
+    console.log("MICROSOFT LOGIN API HIT");
 
-    const updateData = {
-      username,
-      email,
-      phone,
-      department,
-      position,
-    };
+    const { idToken } = req.body;
 
-    if (req.file) {
-      updateData.profilePicture = req.file.filename;
+    if (!idToken) {
+      return res.status(400).json({
+        message: "Microsoft ID token is required",
+      });
     }
 
-    const updatedUser = await User.findByIdAndUpdate(
-      req.params.id,
-      updateData,
-      { new: true }
-    ).select("-password");
+    const decoded = await verifyMicrosoftToken(idToken);
 
-    if (!updatedUser) {
+    console.log("MICROSOFT DECODED TOKEN:", decoded);
+
+    const email =
+      decoded.preferred_username ||
+      decoded.email ||
+      decoded.upn ||
+      decoded.unique_name;
+
+    const username =
+      decoded.name ||
+      decoded.given_name ||
+      (email ? email.split("@")[0] : "Microsoft User");
+
+    if (!email) {
+      return res.status(400).json({
+        message: "Microsoft account email not found",
+      });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+
+    if (!normalizedEmail.endsWith("@swisstekaluminium.com")) {
+      return res.status(403).json({
+        message: "Only Swisstek company emails are allowed",
+      });
+    }
+
+    const user = await User.findOne({
+      email: normalizedEmail,
+    });
+
+    if (!user) {
+      return res.status(403).json({
+        message:
+          "Your Microsoft account is not approved. Please contact the system administrator.",
+      });
+    }
+
+    user.authProvider = "microsoft";
+
+    if (!user.username) {
+      user.username = username;
+    }
+
+    await user.save();
+
+    console.log("MICROSOFT USER APPROVED:", user);
+
+    const token = createAppToken(user);
+
+    res.status(200).json({
+      message: "Microsoft login successful",
+      token,
+      user: formatUser(user),
+    });
+  } catch (error) {
+    console.log("Microsoft token verify error:", error);
+
+    res.status(401).json({
+      message: "Microsoft login verification failed",
+      error: error.message,
+    });
+  }
+});
+
+/* =========================================
+   GET LOGGED USER PROFILE
+========================================= */
+
+router.get("/profile", protect, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select("-password");
+
+    if (!user) {
       return res.status(404).json({
         message: "User not found",
       });
     }
 
     res.json({
-      message: "Profile updated successfully",
-      user: {
-        id: updatedUser._id,
-        username: updatedUser.username,
-        email: updatedUser.email,
-        role: updatedUser.role,
-        phone: updatedUser.phone,
-        department: updatedUser.department,
-        position: updatedUser.position,
-        profilePicture: updatedUser.profilePicture,
-      },
+      user: formatUser(user),
     });
   } catch (error) {
-    console.log("Profile update error:", error);
+    console.log("Get profile error:", error);
+
     res.status(500).json({
-      message: "Profile update failed",
+      message: "Profile load failed",
       error: error.message,
     });
   }
 });
 
-// CHANGE PASSWORD
-router.put("/change-password/:id", async (req, res) => {
+/* =========================================
+   UPDATE PROFILE
+   Normal user cannot change email
+   Admin can change email
+========================================= */
+
+router.put(
+  "/profile/:id",
+  protect,
+  upload.single("profilePicture"),
+  async (req, res) => {
+    try {
+      const { username, email, phone, department, position } = req.body;
+
+      if (req.user.id !== req.params.id && req.user.role !== "admin") {
+        return res.status(403).json({
+          message: "Not allowed to update this profile",
+        });
+      }
+
+      const updateData = {
+        username,
+        phone,
+        department,
+        position,
+      };
+
+      if (email && req.user.role === "admin") {
+        updateData.email = email.toLowerCase().trim();
+      }
+
+      if (req.file) {
+        updateData.profilePicture = req.file.filename;
+      }
+
+      const updatedUser = await User.findByIdAndUpdate(
+        req.params.id,
+        updateData,
+        {
+          new: true,
+        }
+      ).select("-password");
+
+      if (!updatedUser) {
+        return res.status(404).json({
+          message: "User not found",
+        });
+      }
+
+      res.json({
+        message: "Profile updated successfully",
+        user: formatUser(updatedUser),
+      });
+    } catch (error) {
+      console.log("Profile update error:", error);
+
+      res.status(500).json({
+        message: "Profile update failed",
+        error: error.message,
+      });
+    }
+  }
+);
+/* =========================================
+   GET ALL USERS - ADMIN ONLY
+========================================= */
+
+router.get("/users", protect, adminOnly, async (req, res) => {
+  try {
+    const users = await User.find()
+      .select("-password")
+      .sort({ createdAt: -1 });
+
+    res.json(users);
+  } catch (error) {
+    console.log("Get users error:", error);
+
+    res.status(500).json({
+      message: "Failed to load users",
+      error: error.message,
+    });
+  }
+});
+
+/* =========================================
+   DELETE USER - ADMIN ONLY
+========================================= */
+
+router.delete("/users/:id", protect, adminOnly, async (req, res) => {
+  try {
+    if (req.user.id === req.params.id) {
+      return res.status(400).json({
+        message: "You cannot delete your own account",
+      });
+    }
+
+    const deletedUser = await User.findByIdAndDelete(req.params.id);
+
+    if (!deletedUser) {
+      return res.status(404).json({
+        message: "User not found",
+      });
+    }
+
+    res.json({
+      message: "User deleted successfully",
+    });
+  } catch (error) {
+    console.log("Delete user error:", error);
+
+    res.status(500).json({
+      message: "Failed to delete user",
+      error: error.message,
+    });
+  }
+});
+/* =========================================
+   CHANGE PASSWORD
+========================================= */
+
+router.put("/change-password/:id", protect, async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
+
+    if (req.user.id !== req.params.id && req.user.role !== "admin") {
+      return res.status(403).json({
+        message: "Not allowed to change this password",
+      });
+    }
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        message: "Current password and new password are required",
+      });
+    }
 
     const user = await User.findById(req.params.id);
 
     if (!user) {
       return res.status(404).json({
         message: "User not found",
+      });
+    }
+
+    if (user.authProvider === "microsoft" || !user.password) {
+      return res.status(400).json({
+        message: "Microsoft users cannot change password here",
       });
     }
 
@@ -203,74 +460,12 @@ router.put("/change-password/:id", async (req, res) => {
     });
   } catch (error) {
     console.log("Password change error:", error);
+
     res.status(500).json({
       message: "Password change failed",
       error: error.message,
     });
   }
 });
-router.post("/microsoft-login", async (req, res) => {
-  try {
-    const { name, email } = req.body;
 
-    if (!email) {
-      return res.status(400).json({
-        message: "Email is required",
-      });
-    }
-
-    let user = await User.findOne({ email });
-
-    if (!user) {
-      const hashedPassword = await bcrypt.hash(
-        "Microsoft@123",
-        10
-      );
-
-      user = new User({
-        username: name || email.split("@")[0],
-        email,
-        password: hashedPassword,
-        role: "admin",
-        phone: "",
-        department: "",
-        position: "",
-      });
-
-      await user.save();
-    }
-
-    const token = jwt.sign(
-      {
-        id: user._id,
-        role: user.role,
-      },
-      process.env.JWT_SECRET || "jwtSecret",
-      {
-        expiresIn: "7d",
-      }
-    );
-
-    res.json({
-      token,
-      user: {
-        id: user._id,
-        username: user.username,
-        email: user.email,
-        role: user.role,
-        phone: user.phone,
-        department: user.department,
-        position: user.position,
-        profilePicture: user.profilePicture,
-      },
-    });
-  } catch (error) {
-    console.log("Microsoft login error:", error);
-
-    res.status(500).json({
-      message: "Microsoft login failed",
-      error: error.message,
-    });
-  }
-});
 module.exports = router;

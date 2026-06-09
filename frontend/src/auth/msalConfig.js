@@ -7,6 +7,10 @@ export const msalConfig = {
       window.location.hostname === "localhost"
         ? "http://localhost:3000/login"
         : "https://it-device-tracker.vercel.app/login",
+    postLogoutRedirectUri:
+      window.location.hostname === "localhost"
+        ? "http://localhost:3000/login"
+        : "https://it-device-tracker.vercel.app/login",
   },
   cache: {
     cacheLocation: "localStorage",

@@ -23,11 +23,22 @@ import UPS from "./pages/UPS";
 import SmartBoards from "./pages/SmartBoards";
 import PortableTrackers from "./pages/PortableTrackers";
 import FingerprintMachines from "./pages/FingerprintMachines";
+
 import Login from "./pages/Login";
 import Profile from "./pages/Profile";
 import Users from "./pages/Users";
 import Employees from "./pages/Employees";
+
+// New dynamic GUI pages
+import InterfaceBuilder from "./pages/InterfaceBuilder";
+import CustomDevicePage from "./pages/CustomDevicePage";
+
 import "./styles/app.css";
+
+const BASE_UPLOAD_URL =
+  window.location.hostname === "localhost"
+    ? "http://localhost:5000/uploads"
+    : "https://it-device-tracker.onrender.com/uploads";
 
 function Layout() {
   const location = useLocation();
@@ -35,16 +46,16 @@ function Layout() {
 
   const hideSidebar = location.pathname === "/login";
   const token = localStorage.getItem("token");
-  const user = JSON.parse(localStorage.getItem("user"));
-  const isAdmin = user?.role === "admin";
+
+  const storedUser = localStorage.getItem("user");
+  const user = storedUser ? JSON.parse(storedUser) : null;
+
+  const isAdmin = String(user?.role || "").toLowerCase() === "admin";
 
   const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
-
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
@@ -70,20 +81,29 @@ function Layout() {
   });
 
   const logout = async () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
+    localStorage.clear();
+    sessionStorage.clear();
 
-    const accounts = instance.getAllAccounts();
+    try {
+      const accounts = instance.getAllAccounts();
 
-    if (accounts.length > 0) {
-      await instance.logoutRedirect({
-        account: accounts[0],
-        postLogoutRedirectUri: "/login",
-      });
-    } else {
-      window.location.href = "/login";
+      if (accounts.length > 0) {
+        await instance.logoutRedirect({
+          account: accounts[0],
+          postLogoutRedirectUri: window.location.origin + "/login",
+        });
+      } else {
+        window.location.replace("/login");
+      }
+    } catch (err) {
+      console.error("Logout error:", err);
+      window.location.replace("/login");
     }
   };
+
+  const profileImageUrl = user?.profilePicture
+    ? `${BASE_UPLOAD_URL}/${user.profilePicture}`
+    : null;
 
   return (
     <div className="app">
@@ -103,35 +123,44 @@ function Layout() {
             <h2>IT Device Tracker</h2>
           </div>
 
-          {user && (
-            <div className="user-box">
-              {user.profilePicture ? (
-                <img
-                  src={`https://it-device-tracker.onrender.com/uploads/${user.profilePicture}`}
-                  alt="Profile"
-                  className="sidebar-profile-img"
-                />
-              ) : (
-                <div className="avatar">
-                  {user.username?.charAt(0).toUpperCase()}
-                </div>
-              )}
+          <div className="user-box">
+            {profileImageUrl ? (
+              <img
+                src={profileImageUrl}
+                alt="Profile"
+                className="sidebar-profile-img"
+              />
+            ) : (
+              <div className="avatar">
+                {(user?.username || user?.email || "U")
+                  .charAt(0)
+                  .toUpperCase()}
+              </div>
+            )}
 
-              <h4>{user.username}</h4>
-              <p>{user.role}</p>
+            <h4>{user?.username || "User"}</h4>
+            <p>{isAdmin ? "Admin" : "User"}</p>
 
-              <Link to="/profile" className="profile-btn">
-                My Profile
-              </Link>
+            <Link to="/profile" className="profile-btn">
+              My Profile
+            </Link>
 
-              <button onClick={logout}>Logout</button>
-            </div>
-          )}
+            <button type="button" onClick={logout}>
+              Logout
+            </button>
+          </div>
 
           <Link to="/">Dashboard</Link>
 
-          {isAdmin && <Link to="/employees">Employee Management</Link>}
-          {isAdmin && <Link to="/users">User Management</Link>}
+          {isAdmin && (
+            <>
+              <Link to="/employees">Employee Management</Link>
+              <Link to="/users">User Management</Link>
+              <Link to="/interface-builder">GUI Builder</Link>
+            </>
+          )}
+
+          <Link to="/custom-devices">Custom Devices</Link>
 
           <Link to="/desktops">Desktops</Link>
           <Link to="/laptops">Laptops</Link>
@@ -163,6 +192,13 @@ function Layout() {
             element={isAdmin ? <Users /> : <Navigate to="/" replace />}
           />
 
+          <Route
+            path="/interface-builder"
+            element={isAdmin ? <InterfaceBuilder /> : <Navigate to="/" replace />}
+          />
+
+          <Route path="/custom-devices" element={<CustomDevicePage />} />
+
           <Route path="/desktops" element={<Desktops />} />
           <Route path="/laptops" element={<Laptops />} />
           <Route path="/tablets" element={<Tablets />} />
@@ -175,10 +211,8 @@ function Layout() {
           <Route path="/ups" element={<UPS />} />
           <Route path="/smart-boards" element={<SmartBoards />} />
           <Route path="/portable-trackers" element={<PortableTrackers />} />
-          <Route
-            path="/fingerprint-machines"
-            element={<FingerprintMachines />}
-          />
+          <Route path="/fingerprint-machines" element={<FingerprintMachines />} />
+
           <Route path="/profile" element={<Profile />} />
           <Route path="/login" element={<Login />} />
 

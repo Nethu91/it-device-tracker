@@ -2,6 +2,13 @@ import React, { useState } from "react";
 import axios from "axios";
 import "../styles/profile.css";
 
+const BASE_API =
+  window.location.hostname === "localhost"
+    ? "http://localhost:5000/api"
+    : "https://it-device-tracker.onrender.com/api";
+
+const AUTH_API = `${BASE_API}/auth`;
+
 function Profile() {
   const storedUser = JSON.parse(localStorage.getItem("user"));
 
@@ -21,6 +28,14 @@ function Profile() {
     currentPassword: "",
     newPassword: "",
     confirmPassword: "",
+  });
+
+  const isMicrosoftUser = user?.authProvider === "microsoft";
+
+  const getAuthHeaders = () => ({
+    headers: {
+      Authorization: `Bearer ${localStorage.getItem("token")}`,
+    },
   });
 
   const handleChange = (e) => {
@@ -47,44 +62,54 @@ function Profile() {
       }
 
       const res = await axios.put(
-        `https://it-device-tracker.onrender.com/api/auth/profile/${user.id}`,
-        data
+        `${AUTH_API}/profile/${user.id}`,
+        data,
+        getAuthHeaders()
       );
 
-      localStorage.setItem(
-        "user",
-        JSON.stringify(res.data.user)
-      );
-
+      localStorage.setItem("user", JSON.stringify(res.data.user));
       setUser(res.data.user);
 
       alert("Profile updated successfully");
     } catch (err) {
-      alert(
-        err.response?.data?.message ||
-          "Profile update failed"
-      );
+      console.error("Profile update error:", err.response?.data || err.message);
+      alert(err.response?.data?.message || "Profile update failed");
     }
+  };
+
+  const handlePasswordInputChange = (e) => {
+    setPasswordForm({
+      ...passwordForm,
+      [e.target.name]: e.target.value,
+    });
   };
 
   const changePassword = async (e) => {
     e.preventDefault();
 
-    if (
-      passwordForm.newPassword !==
-      passwordForm.confirmPassword
-    ) {
+    if (isMicrosoftUser) {
+      alert("Microsoft users cannot change password here.");
+      return;
+    }
+
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
       alert("New passwords do not match");
+      return;
+    }
+
+    if (!passwordForm.currentPassword || !passwordForm.newPassword) {
+      alert("Please fill all password fields");
       return;
     }
 
     try {
       await axios.put(
-        `https://it-device-tracker.onrender.com/api/auth/change-password/${user.id}`,
+        `${AUTH_API}/change-password/${user.id}`,
         {
           currentPassword: passwordForm.currentPassword,
           newPassword: passwordForm.newPassword,
-        }
+        },
+        getAuthHeaders()
       );
 
       alert("Password changed successfully");
@@ -95,15 +120,15 @@ function Profile() {
         confirmPassword: "",
       });
     } catch (err) {
-      alert(
-        err.response?.data?.message ||
-          "Password change failed"
-      );
+      console.error("Password change error:", err.response?.data || err.message);
+      alert(err.response?.data?.message || "Password change failed");
     }
   };
 
   const imageUrl = user?.profilePicture
-    ? `https://it-device-tracker.onrender.com/uploads/${user.profilePicture}`
+    ? window.location.hostname === "localhost"
+      ? `http://localhost:5000/uploads/${user.profilePicture}`
+      : `https://it-device-tracker.onrender.com/uploads/${user.profilePicture}`
     : null;
 
   return (
@@ -119,7 +144,7 @@ function Profile() {
               <img src={imageUrl} alt="Profile" />
             ) : (
               <div className="profile-avatar">
-                {user?.username?.charAt(0).toUpperCase()}
+                {user?.username?.charAt(0).toUpperCase() || "U"}
               </div>
             )}
           </div>
@@ -127,12 +152,13 @@ function Profile() {
           <h2>{user?.username}</h2>
           <p>{user?.role}</p>
           <p>{user?.email}</p>
+
+          {isMicrosoftUser && (
+            <span className="microsoft-badge">Microsoft Account</span>
+          )}
         </div>
 
-        <form
-          className="profile-form"
-          onSubmit={updateProfile}
-        >
+        <form className="profile-form" onSubmit={updateProfile}>
           <h2>Update Profile</h2>
 
           <input
@@ -174,62 +200,52 @@ function Profile() {
           <input
             type="file"
             accept="image/*"
-            onChange={(e) =>
-              setProfilePicture(e.target.files[0])
-            }
+            onChange={(e) => setProfilePicture(e.target.files[0])}
           />
 
-          <button type="submit">
-            Update Profile
-          </button>
+          <button type="submit">Update Profile</button>
         </form>
 
-        <form
-          className="profile-form"
-          onSubmit={changePassword}
-        >
-          <h2>Change Password</h2>
+        {isMicrosoftUser ? (
+          <div className="profile-form microsoft-info-card">
+            <h2>Microsoft Account</h2>
 
-          <input
-            type="password"
-            placeholder="Current Password"
-            value={passwordForm.currentPassword}
-            onChange={(e) =>
-              setPasswordForm({
-                ...passwordForm,
-                currentPassword: e.target.value,
-              })
-            }
-          />
+            <p>
+              You signed in using Microsoft. Password changes must be done
+              through your Microsoft account.
+            </p>
+          </div>
+        ) : (
+          <form className="profile-form" onSubmit={changePassword}>
+            <h2>Change Password</h2>
 
-          <input
-            type="password"
-            placeholder="New Password"
-            value={passwordForm.newPassword}
-            onChange={(e) =>
-              setPasswordForm({
-                ...passwordForm,
-                newPassword: e.target.value,
-              })
-            }
-          />
+            <input
+              type="password"
+              name="currentPassword"
+              placeholder="Current Password"
+              value={passwordForm.currentPassword}
+              onChange={handlePasswordInputChange}
+            />
 
-          <input
-            type="password"
-            placeholder="Confirm New Password"
-            value={passwordForm.confirmPassword}
-            onChange={(e) =>
-              setPasswordForm({
-                ...passwordForm,
-                confirmPassword: e.target.value,
-              })
-            }
-          />
+            <input
+              type="password"
+              name="newPassword"
+              placeholder="New Password"
+              value={passwordForm.newPassword}
+              onChange={handlePasswordInputChange}
+            />
 
-          <button type="submit">
-            Change Password
-          </button>
-        </form>
+            <input
+              type="password"
+              name="confirmPassword"
+              placeholder="Confirm New Password"
+              value={passwordForm.confirmPassword}
+              onChange={handlePasswordInputChange}
+            />
+
+            <button type="submit">Change Password</button>
+          </form>
+        )}
       </div>
     </div>
   );

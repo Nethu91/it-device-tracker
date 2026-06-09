@@ -1,7 +1,10 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 
-const API_URL = "http://localhost:5000";
+const API_URL =
+  window.location.hostname === "localhost"
+    ? "http://localhost:5000"
+    : "https://it-device-tracker.onrender.com";
 
 function Employees() {
   const user = JSON.parse(localStorage.getItem("user"));
@@ -26,6 +29,7 @@ function Employees() {
 
   const getHeaders = () => ({
     headers: {
+      "Content-Type": "application/json",
       Authorization: `Bearer ${localStorage.getItem("token")}`,
     },
   });
@@ -40,15 +44,23 @@ function Employees() {
     fetchEmployees();
     fetchDepartments();
     fetchLocations();
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const normalizeArray = (data, key) => {
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data?.[key])) return data[key];
+    if (Array.isArray(data?.data)) return data.data;
+    return [];
+  };
 
   const fetchEmployees = async () => {
     try {
       const res = await axios.get(`${API_URL}/api/employees`, getHeaders());
-      setEmployees(res.data);
+      setEmployees(normalizeArray(res.data, "employees"));
     } catch (err) {
       console.log("Employees Fetch Error:", err.response?.data || err.message);
+      setEmployees([]);
     }
   };
 
@@ -58,9 +70,10 @@ function Employees() {
         `${API_URL}/api/employees/departments/all`,
         getHeaders()
       );
-      setDepartments(res.data);
+      setDepartments(normalizeArray(res.data, "departments"));
     } catch (err) {
       console.log("Department Fetch Error:", err.response?.data || err.message);
+      setDepartments([]);
     }
   };
 
@@ -70,14 +83,20 @@ function Employees() {
         `${API_URL}/api/employees/locations/all`,
         getHeaders()
       );
-      setLocations(res.data);
+      setLocations(normalizeArray(res.data, "locations"));
     } catch (err) {
       console.log("Location Fetch Error:", err.response?.data || err.message);
+      setLocations([]);
     }
   };
 
   const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+
+    setForm((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
   };
 
   const resetForm = () => {
@@ -134,6 +153,35 @@ function Employees() {
     }
   };
 
+  const validateEmployeeForm = () => {
+    if (!form.FirstName.trim()) {
+      alert("First name is required");
+      return false;
+    }
+
+    if (!form.SecondName.trim()) {
+      alert("Second name is required");
+      return false;
+    }
+
+    if (!form.EPFNumber.toString().trim()) {
+      alert("EPF number is required");
+      return false;
+    }
+
+    if (!form.Department.trim()) {
+      alert("Department is required");
+      return false;
+    }
+
+    if (!form.Location.trim()) {
+      alert("Location is required");
+      return false;
+    }
+
+    return true;
+  };
+
   const saveEmployee = async (e) => {
     e.preventDefault();
 
@@ -142,15 +190,27 @@ function Employees() {
       return;
     }
 
+    if (!validateEmployeeForm()) return;
+
     try {
       const payload = {
-        ...form,
         FirstName: form.FirstName.trim(),
         SecondName: form.SecondName.trim(),
+        EPFNumber: form.EPFNumber.toString().trim(),
         Department: form.Department.trim(),
         Location: form.Location.trim(),
-        EPFNumber: Number(form.EPFNumber),
+        Status: form.Status || "Active",
+
+        // lowercase fields also sent for backend compatibility
+        firstName: form.FirstName.trim(),
+        secondName: form.SecondName.trim(),
+        epfNumber: form.EPFNumber.toString().trim(),
+        department: form.Department.trim(),
+        location: form.Location.trim(),
+        status: form.Status || "Active",
       };
+
+      console.log("SENDING EMPLOYEE:", payload);
 
       if (editId) {
         await axios.put(
@@ -173,14 +233,17 @@ function Employees() {
 
   const editEmployee = (emp) => {
     setEditId(emp._id);
+
     setForm({
-      FirstName: emp.FirstName || "",
-      SecondName: emp.SecondName || "",
-      EPFNumber: emp.EPFNumber || "",
-      Department: emp.Department || "",
-      Location: emp.Location || "",
-      Status: emp.Status || "Active",
+      FirstName: emp.FirstName || emp.firstName || "",
+      SecondName: emp.SecondName || emp.secondName || "",
+      EPFNumber: emp.EPFNumber || emp.epfNumber || "",
+      Department: emp.Department || emp.department || "",
+      Location: emp.Location || emp.location || "",
+      Status: emp.Status || emp.status || "Active",
     });
+
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const deleteEmployee = async (id) => {
@@ -195,6 +258,16 @@ function Employees() {
     }
   };
 
+  const getFullName = (emp) => {
+    return (
+      emp.FullName ||
+      emp.fullName ||
+      `${emp.FirstName || emp.firstName || ""} ${
+        emp.SecondName || emp.secondName || ""
+      }`.trim()
+    );
+  };
+
   return (
     <div className="page">
       <div className="page-header">
@@ -202,101 +275,105 @@ function Employees() {
         <span className="count-badge">{employees.length} Employees</span>
       </div>
 
-      <div className="pro-card">
-        <h2>Add Department & Location</h2>
+      {isAdmin && (
+        <div className="pro-card">
+          <h2>Add Department & Location</h2>
 
-        <div className="form-grid">
-          <input
-            placeholder="New Department"
-            value={newDepartment}
-            onChange={(e) => setNewDepartment(e.target.value)}
-          />
+          <div className="form-grid">
+            <input
+              placeholder="New Department"
+              value={newDepartment}
+              onChange={(e) => setNewDepartment(e.target.value)}
+            />
 
-          <button type="button" className="btn-save" onClick={addDepartment}>
-            Add Department
-          </button>
+            <button type="button" className="btn-save" onClick={addDepartment}>
+              Add Department
+            </button>
 
-          <input
-            placeholder="New Location"
-            value={newLocation}
-            onChange={(e) => setNewLocation(e.target.value)}
-          />
+            <input
+              placeholder="New Location"
+              value={newLocation}
+              onChange={(e) => setNewLocation(e.target.value)}
+            />
 
-          <button type="button" className="btn-save" onClick={addLocation}>
-            Add Location
-          </button>
+            <button type="button" className="btn-save" onClick={addLocation}>
+              Add Location
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
-      <form className="device-form pro-card" onSubmit={saveEmployee}>
-        <input
-          name="FirstName"
-          placeholder="First Name"
-          value={form.FirstName}
-          onChange={handleChange}
-          required
-        />
+      {isAdmin && (
+        <form className="device-form pro-card" onSubmit={saveEmployee}>
+          <input
+            name="FirstName"
+            placeholder="First Name"
+            value={form.FirstName}
+            onChange={handleChange}
+            required
+          />
 
-        <input
-          name="SecondName"
-          placeholder="Second Name"
-          value={form.SecondName}
-          onChange={handleChange}
-          required
-        />
+          <input
+            name="SecondName"
+            placeholder="Second Name"
+            value={form.SecondName}
+            onChange={handleChange}
+            required
+          />
 
-        <input
-          name="EPFNumber"
-          type="number"
-          placeholder="EPF Number"
-          value={form.EPFNumber}
-          onChange={handleChange}
-          required
-        />
+          <input
+            name="EPFNumber"
+            type="text"
+            placeholder="EPF Number"
+            value={form.EPFNumber}
+            onChange={handleChange}
+            required
+          />
 
-        <select
-          name="Department"
-          value={form.Department}
-          onChange={handleChange}
-          required
-        >
-          <option value="">Select Department</option>
-          {departments.map((dep) => (
-            <option key={dep._id} value={dep.Name}>
-              {dep.Name}
-            </option>
-          ))}
-        </select>
+          <select
+            name="Department"
+            value={form.Department}
+            onChange={handleChange}
+            required
+          >
+            <option value="">Select Department</option>
+            {departments.map((dep) => (
+              <option key={dep._id || dep.Name} value={dep.Name}>
+                {dep.Name}
+              </option>
+            ))}
+          </select>
 
-        <select
-          name="Location"
-          value={form.Location}
-          onChange={handleChange}
-          required
-        >
-          <option value="">Select Location</option>
-          {locations.map((loc) => (
-            <option key={loc._id} value={loc.Name}>
-              {loc.Name}
-            </option>
-          ))}
-        </select>
+          <select
+            name="Location"
+            value={form.Location}
+            onChange={handleChange}
+            required
+          >
+            <option value="">Select Location</option>
+            {locations.map((loc) => (
+              <option key={loc._id || loc.Name} value={loc.Name}>
+                {loc.Name}
+              </option>
+            ))}
+          </select>
 
-        <select name="Status" value={form.Status} onChange={handleChange}>
-          <option value="Active">Active</option>
-          <option value="Inactive">Inactive</option>
-        </select>
+          <select name="Status" value={form.Status} onChange={handleChange}>
+            <option value="Active">Active</option>
+            <option value="Inactive">Inactive</option>
+          </select>
 
-        <button className="btn-save" type="submit">
-          {editId ? "Update Employee" : "Add Employee"}
-        </button>
-
-        {editId && (
-          <button type="button" className="btn-delete" onClick={resetForm}>
-            Cancel Edit
+          <button className="btn-save" type="submit">
+            {editId ? "Update Employee" : "Add Employee"}
           </button>
-        )}
-      </form>
+
+          {editId && (
+            <button type="button" className="btn-delete" onClick={resetForm}>
+              Cancel Edit
+            </button>
+          )}
+        </form>
+      )}
 
       <div className="table-card">
         <table>
@@ -316,22 +393,27 @@ function Employees() {
           <tbody>
             {employees.map((emp) => (
               <tr key={emp._id}>
-                <td>{emp.FirstName}</td>
-                <td>{emp.SecondName}</td>
-                <td>{emp.FullName}</td>
-                <td>{emp.EPFNumber}</td>
-                <td>{emp.Department}</td>
-                <td>{emp.Location}</td>
+                <td>{emp.FirstName || emp.firstName}</td>
+                <td>{emp.SecondName || emp.secondName}</td>
+                <td>{getFullName(emp)}</td>
+                <td>{emp.EPFNumber || emp.epfNumber}</td>
+                <td>{emp.Department || emp.department}</td>
+                <td>{emp.Location || emp.location}</td>
                 <td>
-                  <span className={`status-pill ${emp.Status}`}>
-                    {emp.Status}
+                  <span className={`status-pill ${emp.Status || emp.status}`}>
+                    {emp.Status || emp.status}
                   </span>
                 </td>
+
                 {isAdmin && (
                   <td>
-                    <button className="btn-edit" onClick={() => editEmployee(emp)}>
+                    <button
+                      className="btn-edit"
+                      onClick={() => editEmployee(emp)}
+                    >
                       Edit
                     </button>
+
                     <button
                       className="btn-delete"
                       onClick={() => deleteEmployee(emp._id)}

@@ -1,92 +1,181 @@
 import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 
-const API_URL = "https://it-device-tracker.onrender.com/api";
+const BASE_API =
+  window.location.hostname === "localhost"
+    ? "http://localhost:5000/api"
+    : "https://it-device-tracker.onrender.com/api";
+
+const DEVICE_API = `${BASE_API}/devices`;
+const EMPLOYEE_API = `${BASE_API}/employees`;
+const CUSTOM_DEVICE_API = `${BASE_API}/custom-devices`;
 
 function Dashboard() {
   const [devices, setDevices] = useState([]);
   const [employees, setEmployees] = useState([]);
+  const [customDevices, setCustomDevices] = useState([]);
   const [search, setSearch] = useState("");
   const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  const getAuthHeaders = () => ({
+    headers: {
+      Authorization: `Bearer ${localStorage.getItem("token")}`,
+    },
+  });
+
+  const normalizeArray = (data, key) => {
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data?.[key])) return data[key];
+    if (Array.isArray(data?.data)) return data.data;
+    return [];
+  };
 
   const loadDashboardData = async () => {
     try {
-      const deviceRes = await axios.get(`${API_URL}/devices`);
-      setDevices(deviceRes.data || []);
+      setLoading(true);
 
-      try {
-        const empRes = await axios.get(`${API_URL}/employees`);
-        setEmployees(empRes.data || []);
-      } catch {
-        setEmployees([]);
-      }
+      const [deviceRes, empRes, customRes] = await Promise.all([
+        axios.get(DEVICE_API, getAuthHeaders()),
+        axios.get(EMPLOYEE_API, getAuthHeaders()),
+        axios.get(CUSTOM_DEVICE_API, getAuthHeaders()).catch(() => ({
+          data: [],
+        })),
+      ]);
+
+      const deviceData = normalizeArray(deviceRes.data, "devices");
+      const employeeData = normalizeArray(empRes.data, "employees");
+      const customDeviceData = normalizeArray(customRes.data, "customDevices");
+
+      setDevices(deviceData);
+      setEmployees(employeeData);
+      setCustomDevices(customDeviceData);
+
+      console.log("DASHBOARD DEVICES:", deviceData);
+      console.log("DASHBOARD EMPLOYEES:", employeeData);
+      console.log("DASHBOARD CUSTOM DEVICES:", customDeviceData);
     } catch (err) {
-      console.error("Dashboard load error:", err);
+      console.error("Dashboard load error:", err.response?.data || err.message);
+      setDevices([]);
+      setEmployees([]);
+      setCustomDevices([]);
+    } finally {
+      setLoading(false);
     }
   };
 
   useEffect(() => {
-  loadDashboardData();
-
-  const interval = setInterval(() => {
     loadDashboardData();
-  }, 10000); // every 10 seconds
 
-  return () => clearInterval(interval);
-}, []);
+    const handleFocus = () => {
+      loadDashboardData();
+    };
 
-  const countByStatus = (status) =>
-    devices.filter((d) => d.Status === status).length;
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        loadDashboardData();
+      }
+    };
+
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    const interval = setInterval(() => {
+      loadDashboardData();
+    }, 10000);
+
+    return () => {
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      clearInterval(interval);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const totalDeviceCount = devices.length + customDevices.length;
+
+  const countByStatus = (status) => {
+    const normalCount = devices.filter((d) => d.Status === status).length;
+    const customCount = customDevices.filter((d) => d.status === status).length;
+    return normalCount + customCount;
+  };
 
   const normalizeType = (value) =>
-  String(value || "")
-    .toLowerCase()
-    .replaceAll("-", " ")
-    .replaceAll("_", " ")
-    .replace(/\s+/g, " ")
-    .trim();
+    String(value || "")
+      .toLowerCase()
+      .replaceAll("-", " ")
+      .replaceAll("_", " ")
+      .replace(/\s+/g, " ")
+      .trim();
 
-const countByType = (...types) => {
-  const normalizedTypes = types.map(normalizeType);
+  const countByType = (...types) => {
+    const normalizedTypes = types.map(normalizeType);
 
-  return devices.filter((d) =>
-    normalizedTypes.includes(normalizeType(d.DeviceType))
-  ).length;
-};
+    return devices.filter((d) =>
+      normalizedTypes.includes(normalizeType(d.DeviceType))
+    ).length;
+  };
+
+  const searchText = (d) =>
+    [
+      d.DeviceType,
+      d.EmployeeName,
+      d.EPFNumber,
+      d.Department,
+      d.Designation,
+      d.DeviceName,
+      d.Model,
+      d.SerialNumber,
+      d.AssetCode,
+      d.Location,
+      d.IPAddress,
+      d.SIMNumber,
+      d.PONumber,
+      d.Vendor,
+      d.InvoiceNumber,
+      d.CurrentUser,
+      d.TonerModel,
+      d.ExactLocation,
+      d.ITReferenceNumber,
+      d.CurrentLocation,
+      d.ProjectorVendor,
+      d.AccessPointBrand,
+      d.AccessPointModel,
+      d.WirelessVendor,
+      d.WirelessUsername,
+      d.PowerAppSID,
+      d.NewIPAfterVLAN,
+      d.PortableTracking,
+      d.PortableTrackingNumber,
+      d.PortableTrackingSIMNumber,
+    ]
+      .join(" ")
+      .toLowerCase();
+
+  const customSearchText = (d) =>
+    [
+      d.templateName,
+      d.status,
+      ...Object.values(d.data || {}),
+    ]
+      .join(" ")
+      .toLowerCase();
 
   const suggestions = useMemo(() => {
     const keyword = search.trim().toLowerCase();
 
     if (!keyword) return [];
 
-    return devices
-      .filter((d) =>
-        [
-          d.DeviceType,
-          d.EmployeeName,
-          d.EPFNumber,
-          d.DeviceName,
-          d.Model,
-          d.SerialNumber,
-          d.AssetCode,
-          d.Location,
-          d.IPAddress,
-          d.SIMNumber,
-          d.PONumber,
-          d.CurrentUser,
-          d.TonerModel,
-          d.AccessPointBrand,
-          d.AccessPointModel,
-          d.ExactLocation,
-          d.PowerAppSID,
-          d.NewIPAfterVLAN,
-        ]
-          .join(" ")
-          .toLowerCase()
-          .includes(keyword)
-      )
-      .slice(0, 8);
-  }, [search, devices]);
+    const normalSuggestions = devices
+      .filter((d) => searchText(d).includes(keyword))
+      .map((d) => ({ type: "normal", item: d }));
+
+    const customSuggestions = customDevices
+      .filter((d) => customSearchText(d).includes(keyword))
+      .map((d) => ({ type: "custom", item: d }));
+
+    return [...normalSuggestions, ...customSuggestions].slice(0, 8);
+  }, [search, devices, customDevices]);
 
   const handleSearch = () => {
     const keyword = search.trim().toLowerCase();
@@ -96,72 +185,128 @@ const countByType = (...types) => {
       return;
     }
 
-    const filtered = devices.filter((d) =>
-      [
-        d.DeviceType,
-        d.EmployeeName,
-        d.EPFNumber,
-        d.DeviceName,
-        d.Model,
-        d.SerialNumber,
-        d.AssetCode,
-        d.Location,
-        d.IPAddress,
-        d.SIMNumber,
-        d.PONumber,
-        d.CurrentUser,
-        d.TonerModel,
-        d.AccessPointBrand,
-        d.AccessPointModel,
-        d.ExactLocation,
-        d.PowerAppSID,
-        d.NewIPAfterVLAN,
-      ]
-        .join(" ")
-        .toLowerCase()
-        .includes(keyword)
-    );
+    const normalResults = devices
+      .filter((d) => searchText(d).includes(keyword))
+      .map((d) => ({ type: "normal", item: d }));
 
-    setResults(filtered);
+    const customResults = customDevices
+      .filter((d) => customSearchText(d).includes(keyword))
+      .map((d) => ({ type: "custom", item: d }));
+
+    setResults([...normalResults, ...customResults]);
   };
 
-  const selectSuggestion = (device) => {
-    setSearch(
-      `${device.DeviceType || ""} ${device.EmployeeName || ""} ${
-        device.AssetCode || ""
-      } ${device.SerialNumber || ""}`.trim()
-    );
-    setResults([device]);
+  const selectSuggestion = (result) => {
+    if (result.type === "normal") {
+      const device = result.item;
+
+      setSearch(
+        `${device.DeviceType || ""} ${device.EmployeeName || ""} ${
+          device.AssetCode || ""
+        } ${device.SerialNumber || ""}`.trim()
+      );
+
+      setResults([result]);
+      return;
+    }
+
+    const customDevice = result.item;
+
+    setSearch(`${customDevice.templateName || ""} ${customDevice.status || ""}`);
+    setResults([result]);
   };
 
   const summaryCards = [
-  { title: "Employees", value: employees.length },
-  { title: "Desktops", value: countByType("Desktop", "Desktops") },
-  { title: "Laptops", value: countByType("Laptop", "Laptops") },
-  { title: "Tablets", value: countByType("Tablet", "Tablets") },
-  { title: "SIM", value: countByType("SIM", "Dongle", "Dongles") },
-  { title: "Printers", value: countByType("Printer", "Printers") },
-  { title: "Switches", value: countByType("Switch", "Switches") },
-  { title: "Servers", value: countByType("Server", "Servers") },
-  { title: "Projectors", value: countByType("Projector", "Projectors") },
-  { title: "Wireless AP", value: countByType("Wireless AP", "Wireless_AP", "WirelessAP") },
-  { title: "UPS", value: countByType("UPS") },
-  { title: "Smart Boards", value: countByType("Smart Board", "Smart Boards") },
-  { title: "Portable Trackers", value: countByType("Portable Tracker", "Portable Trackers") },
-  { title: "Fingerprint Machines", value: countByType("Fingerprint Machine", "Fingerprint Machines") },
-];
+    { title: "Employees", value: employees.length },
+    { title: "Desktops", value: countByType("Desktop", "Desktops") },
+    { title: "Laptops", value: countByType("Laptop", "Laptops") },
+    { title: "Tablets", value: countByType("Tablet", "Tablets") },
+    { title: "SIM", value: countByType("SIM", "Dongle", "Dongles") },
+    { title: "Printers", value: countByType("Printer", "Printers") },
+    { title: "Switches", value: countByType("Switch", "Switches") },
+    { title: "Servers", value: countByType("Server", "Servers") },
+    { title: "Projectors", value: countByType("Projector", "Projectors") },
+    {
+      title: "Wireless AP",
+      value: countByType("Wireless AP", "Wireless_AP", "WirelessAP"),
+    },
+    { title: "UPS", value: countByType("UPS") },
+    {
+      title: "Smart Boards",
+      value: countByType("Smart Board", "Smart Boards"),
+    },
+    {
+      title: "Portable Trackers",
+      value: countByType("Portable Tracker", "Portable Trackers"),
+    },
+    {
+      title: "Fingerprint Machines",
+      value: countByType("Fingerprint Machine", "Fingerprint Machines"),
+    },
+    {
+      title: "Custom Devices",
+      value: customDevices.length,
+    },
+  ];
+
+  const renderResultRow = (result) => {
+    if (result.type === "custom") {
+      const d = result.item;
+      const dataValues = Object.values(d.data || {}).join(" | ");
+
+      return (
+        <tr key={d._id}>
+          <td>{d.templateName || "Custom Device"}</td>
+          <td>-</td>
+          <td>-</td>
+          <td>-</td>
+          <td>{dataValues || "-"}</td>
+          <td>-</td>
+          <td>-</td>
+          <td>-</td>
+          <td>-</td>
+          <td>-</td>
+          <td>-</td>
+          <td>-</td>
+          <td>{d.status || "-"}</td>
+        </tr>
+      );
+    }
+
+    const d = result.item;
+
+    return (
+      <tr key={d._id}>
+        <td>{d.DeviceType || "-"}</td>
+        <td>{d.EmployeeName || "-"}</td>
+        <td>{d.EPFNumber || "-"}</td>
+        <td>{d.Department || "-"}</td>
+        <td>{d.DeviceName || "-"}</td>
+        <td>{d.Model || d.AccessPointModel || d.ServerModel || "-"}</td>
+        <td>{d.SerialNumber || "-"}</td>
+        <td>{d.AssetCode || "-"}</td>
+        <td>{d.Location || d.CurrentLocation || d.ExactLocation || "-"}</td>
+        <td>{d.IPAddress || d.NewIPAfterVLAN || "-"}</td>
+        <td>{d.SIMNumber || d.PortableTrackingSIMNumber || "-"}</td>
+        <td>{d.PONumber || "-"}</td>
+        <td>{d.Status || "-"}</td>
+      </tr>
+    );
+  };
 
   return (
     <div className="page">
       <div className="page-header">
         <h1>IT Device Tracker Dashboard</h1>
-        <span className="device-count">{devices.length} Total Devices</span>
+        <span className="device-count">
+          {loading ? "Loading..." : `${totalDeviceCount} Total Devices`}
+        </span>
       </div>
 
       <div className="dashboard-grid">
         <div className="dashboard-card">
           <h3>Total Devices</h3>
-          <h1>{devices.length}</h1>
+          <h1>{totalDeviceCount}</h1>
         </div>
 
         <div className="dashboard-card green">
@@ -192,7 +337,7 @@ const countByType = (...types) => {
           <div className="search-box">
             <input
               type="text"
-              placeholder="Search by EPF, Employee Name, Serial Number, Asset Code, PO Number"
+              placeholder="Search by EPF, Employee Name, Serial Number, Asset Code, PO Number, Custom Device"
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value);
@@ -203,45 +348,62 @@ const countByType = (...types) => {
               }}
             />
 
-            <button onClick={handleSearch}>Search</button>
+            <button type="button" onClick={handleSearch}>
+              Search
+            </button>
           </div>
 
           {search && suggestions.length > 0 && results.length === 0 && (
             <div className="search-dropdown">
-              {suggestions.map((d) => (
-                <div
-                  className="search-item"
-                  key={d._id}
-                  onClick={() => selectSuggestion(d)}
-                >
-                  <strong>{d.DeviceType}</strong> | {d.EmployeeName || "No User"} |{" "}
-                  {d.AssetCode || "No Asset"} | {d.SerialNumber || "No Serial"}
-                </div>
-              ))}
+              {suggestions.map((result) => {
+                const d = result.item;
+
+                return (
+                  <div
+                    className="search-item"
+                    key={d._id}
+                    onClick={() => selectSuggestion(result)}
+                  >
+                    {result.type === "custom" ? (
+                      <>
+                        <strong>{d.templateName}</strong> | Custom Device |{" "}
+                        {d.status || "No Status"}
+                      </>
+                    ) : (
+                      <>
+                        <strong>{d.DeviceType}</strong> |{" "}
+                        {d.EmployeeName || "No User"} |{" "}
+                        {d.AssetCode || "No Asset"} |{" "}
+                        {d.SerialNumber || "No Serial"}
+                      </>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
       </div>
 
       <div className="summary-section">
-  <div className="section-title-row">
-    <h2>Inventory Summary</h2>
-    <span>Live updated device category overview</span>
-  </div>
+        <div className="section-title-row">
+          <h2>Inventory Summary</h2>
+          <span>Live updated device category overview</span>
+        </div>
 
-  <div className="summary-grid">
-    {summaryCards.map((card) => (
-      <div className="summary-card-pro" key={card.title}>
-        <div className="summary-icon">📦</div>
+        <div className="summary-grid">
+          {summaryCards.map((card) => (
+            <div className="summary-card-pro" key={card.title}>
+              <div className="summary-icon">📦</div>
 
-        <div>
-          <p>{card.title}</p>
-          <h2>{card.value}</h2>
+              <div>
+                <p>{card.title}</p>
+                <h2>{card.value}</h2>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
-    ))}
-  </div>
-</div>
 
       {results.length > 0 && (
         <div className="table-card">
@@ -253,7 +415,8 @@ const countByType = (...types) => {
                 <th>Type</th>
                 <th>Employee</th>
                 <th>EPF</th>
-                <th>Device</th>
+                <th>Department</th>
+                <th>Device / Data</th>
                 <th>Model</th>
                 <th>Serial</th>
                 <th>Asset</th>
@@ -265,24 +428,7 @@ const countByType = (...types) => {
               </tr>
             </thead>
 
-            <tbody>
-              {results.map((d) => (
-                <tr key={d._id}>
-                  <td>{d.DeviceType}</td>
-                  <td>{d.EmployeeName || "-"}</td>
-                  <td>{d.EPFNumber || "-"}</td>
-                  <td>{d.DeviceName || "-"}</td>
-                  <td>{d.Model || d.AccessPointModel || d.ServerModel || "-"}</td>
-                  <td>{d.SerialNumber || "-"}</td>
-                  <td>{d.AssetCode || "-"}</td>
-                  <td>{d.Location || d.CurrentLocation || d.ExactLocation || "-"}</td>
-                  <td>{d.IPAddress || d.NewIPAfterVLAN || "-"}</td>
-                  <td>{d.SIMNumber || d.PortableTrackingSIMNumber || "-"}</td>
-                  <td>{d.PONumber || "-"}</td>
-                  <td>{d.Status || "-"}</td>
-                </tr>
-              ))}
-            </tbody>
+            <tbody>{results.map((result) => renderResultRow(result))}</tbody>
           </table>
         </div>
       )}

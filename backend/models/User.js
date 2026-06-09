@@ -4,18 +4,24 @@ const userSchema = new mongoose.Schema(
   {
     username: {
       type: String,
-      required: true,
+      required: [true, "Username is required"],
+      trim: true,
     },
 
     email: {
       type: String,
-      required: true,
+      required: [true, "Email is required"],
       unique: true,
+      lowercase: true,
+      trim: true,
     },
 
     password: {
       type: String,
-      required: true,
+      default: "",
+      required: function () {
+        return this.authProvider === "local";
+      },
     },
 
     role: {
@@ -24,19 +30,28 @@ const userSchema = new mongoose.Schema(
       default: "user",
     },
 
+    authProvider: {
+      type: String,
+      enum: ["local", "microsoft"],
+      default: "local",
+    },
+
     phone: {
       type: String,
       default: "",
+      trim: true,
     },
 
     department: {
       type: String,
       default: "",
+      trim: true,
     },
 
     position: {
       type: String,
       default: "",
+      trim: true,
     },
 
     profilePicture: {

@@ -96,3 +96,30 @@
     grid-template-columns: 1fr;
   }
 }
+.microsoft-info-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.microsoft-info-card p {
+  margin-top: 18px;
+  line-height: 1.7;
+  color: #555;
+  font-size: 15px;
+  background: #f4f7ff;
+  border-left: 5px solid #0078d4;
+  padding: 16px;
+  border-radius: 10px;
+}
+
+.microsoft-badge {
+  margin-top: 12px;
+  display: inline-block;
+  padding: 7px 12px;
+  border-radius: 20px;
+  background: #eef5ff;
+  color: #0078d4;
+  font-size: 12px;
+  font-weight: 700;
+}
