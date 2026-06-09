@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import axios from "axios";
 
 const BASE_API =
@@ -16,13 +16,16 @@ function Users() {
     role: "user",
   });
 
-  const getHeaders = () => ({
-    headers: {
-      Authorization: `Bearer ${localStorage.getItem("token")}`,
-    },
-  });
+  const getHeaders = useCallback(
+    () => ({
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+      },
+    }),
+    []
+  );
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       const res = await axios.get(`${BASE_API}/auth/users`, getHeaders());
 
@@ -35,11 +38,11 @@ function Users() {
       console.error("Fetch users error:", err.response?.data || err.message);
       setUsers([]);
     }
-  };
+  }, [getHeaders]);
 
   useEffect(() => {
     fetchUsers();
-  }, []);
+  }, [fetchUsers]);
 
   const handleChange = (e) => {
     setForm({
