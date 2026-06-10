@@ -34,7 +34,7 @@ function Login() {
   };
 
   /* =========================================
-     ADMIN EMAIL / PASSWORD LOGIN
+     ADMIN EMAIL / USERNAME + PASSWORD LOGIN
      Only admin accounts from users collection
   ========================================= */
 
@@ -44,10 +44,35 @@ function Login() {
     try {
       setNormalLoginLoading(true);
 
+      const loginId = form.email.trim();
+      const password = form.password;
+
+      if (!loginId) {
+        alert("Please enter admin email or username");
+        return;
+      }
+
+      if (!password) {
+        alert("Please enter admin password");
+        return;
+      }
+
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+
+      const normalizedLoginId = loginId.toLowerCase();
+
       const payload = {
-        email: form.email.trim().toLowerCase(),
-        password: form.password,
+        email: normalizedLoginId,
+        username: normalizedLoginId,
+        password,
       };
+
+      console.log("ADMIN LOGIN PAYLOAD:", {
+        email: payload.email,
+        username: payload.username,
+        password: "hidden",
+      });
 
       const res = await axios.post(`${API_URL}/auth/login`, payload);
 
@@ -62,7 +87,12 @@ function Login() {
       navigate("/", { replace: true });
     } catch (err) {
       console.error("Admin login error:", err.response?.data || err.message);
-      alert(err.response?.data?.message || "Admin login failed");
+
+      alert(
+        err.response?.data?.message ||
+          err.response?.data?.error ||
+          "Admin login failed"
+      );
     } finally {
       setNormalLoginLoading(false);
     }
@@ -78,6 +108,8 @@ function Login() {
       localStorage.removeItem("token");
       localStorage.removeItem("user");
 
+      sessionStorage.setItem("msLoginStarted", "true");
+
       setMsLoginLoading(true);
 
       await instance.loginRedirect(loginRequest);
@@ -90,18 +122,25 @@ function Login() {
 
   /* =========================================
      MICROSOFT REDIRECT RETURN HANDLING
+     Microsoft login always becomes employee/user login
   ========================================= */
 
   useEffect(() => {
     const microsoftBackendLogin = async () => {
       try {
         if (inProgress !== InteractionStatus.None) return;
+
+        const msLoginStarted =
+          sessionStorage.getItem("msLoginStarted") === "true";
+
+        if (!msLoginStarted) return;
         if (!isAuthenticated) return;
         if (!accounts || accounts.length === 0) return;
 
         const existingToken = localStorage.getItem("token");
 
         if (existingToken) {
+          sessionStorage.removeItem("msLoginStarted");
           navigate("/", { replace: true });
           return;
         }
@@ -150,6 +189,8 @@ function Login() {
         localStorage.setItem("token", res.data.token);
         localStorage.setItem("user", JSON.stringify(res.data.user));
 
+        sessionStorage.removeItem("msLoginStarted");
+
         navigate("/", { replace: true });
       } catch (err) {
         console.error(
@@ -157,8 +198,11 @@ function Login() {
           err.response?.data || err.message
         );
 
+        sessionStorage.removeItem("msLoginStarted");
+
         alert(
           err.response?.data?.message ||
+            err.response?.data?.error ||
             err.message ||
             "Microsoft login failed"
         );
@@ -187,10 +231,11 @@ function Login() {
           <form onSubmit={loginUser}>
             <input
               name="email"
-              type="email"
+              type="text"
               placeholder="Admin Email / Username"
               value={form.email}
               onChange={handleChange}
+              autoComplete="username"
               required
             />
 
@@ -200,6 +245,7 @@ function Login() {
               placeholder="Admin Password"
               value={form.password}
               onChange={handleChange}
+              autoComplete="current-password"
               required
             />
 
