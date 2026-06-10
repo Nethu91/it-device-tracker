@@ -1,9 +1,12 @@
 const express = require("express");
 const router = express.Router();
 
+const bcrypt = require("bcryptjs");
+
 const Employee = require("../models/Employee");
 const Department = require("../models/Department");
 const Location = require("../models/Location");
+const User = require("../models/User");
 
 const { protect, adminOnly } = require("../middleware/authMiddleware");
 
@@ -15,13 +18,30 @@ const escapeRegex = (text) => {
   return String(text).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 };
 
+const normalizeBoolean = (value) => {
+  if (value === false || value === "false" || value === "0" || value === 0) {
+    return false;
+  }
+
+  return true;
+};
+
 const getEmployeePayload = (body) => {
   const firstName = body.FirstName || body.firstName || "";
   const secondName = body.SecondName || body.secondName || "";
-  const epfNumber = body.EPFNumber || body.epfNumber || body.EPF || body.epf || "";
+  const epfNumber =
+    body.EPFNumber || body.epfNumber || body.EPF || body.epf || "";
   const department = body.Department || body.department || "";
   const location = body.Location || body.location || "";
   const status = body.Status || body.status || "Active";
+
+  const companyEmail = body.CompanyEmail || body.companyEmail || "";
+  const accessRole = body.AccessRole || body.accessRole || "user";
+  const canLogin =
+    body.CanLogin !== undefined ? body.CanLogin : body.canLogin;
+
+  const adminUsername = body.AdminUsername || body.adminUsername || "";
+  const adminPassword = body.AdminPassword || body.adminPassword || "";
 
   return {
     FirstName: String(firstName).trim(),
@@ -30,7 +50,54 @@ const getEmployeePayload = (body) => {
     Department: String(department).trim(),
     Location: String(location).trim(),
     Status: String(status).trim() || "Active",
+
+    CompanyEmail: String(companyEmail).toLowerCase().trim(),
+    AccessRole: accessRole === "admin" ? "admin" : "user",
+    CanLogin: normalizeBoolean(canLogin),
+
+    AdminUsername: String(adminUsername).trim(),
+    AdminPassword: String(adminPassword).trim(),
   };
+};
+
+const createOrUpdateAdminAccount = async ({
+  CompanyEmail,
+  AdminUsername,
+  AdminPassword,
+  Department,
+}) => {
+  if (!CompanyEmail) {
+    throw new Error("Company email is required for admin access");
+  }
+
+  if (!AdminUsername) {
+    throw new Error("Admin username is required");
+  }
+
+  const existingAdmin = await User.findOne({
+    email: CompanyEmail,
+  });
+
+  const adminData = {
+    username: AdminUsername,
+    email: CompanyEmail,
+    role: "admin",
+    authProvider: "local",
+    department: Department || "",
+    position: "",
+  };
+
+  if (AdminPassword) {
+    adminData.password = await bcrypt.hash(AdminPassword, 10);
+  } else if (!existingAdmin) {
+    throw new Error("Admin password is required for new admin account");
+  }
+
+  await User.findOneAndUpdate(
+    { email: CompanyEmail },
+    adminData,
+    { upsert: true, new: true }
+  );
 };
 
 /* =========================================
@@ -166,7 +233,7 @@ router.get("/locations/all", protect, async (req, res) => {
 });
 
 /* =========================================
-   EMPLOYEES
+   EMPLOYEES + ACCESS MANAGEMENT
 ========================================= */
 
 // ADD EMPLOYEE
@@ -181,6 +248,11 @@ router.post("/", protect, adminOnly, async (req, res) => {
       Department,
       Location,
       Status,
+      CompanyEmail,
+      AccessRole,
+      CanLogin,
+      AdminUsername,
+      AdminPassword,
     } = getEmployeePayload(req.body);
 
     if (!FirstName || !SecondName || !EPFNumber || !Department || !Location) {
@@ -200,6 +272,32 @@ router.post("/", protect, adminOnly, async (req, res) => {
       });
     }
 
+    if (CompanyEmail) {
+      const existingEmail = await Employee.findOne({
+        CompanyEmail,
+      });
+
+      if (existingEmail) {
+        return res.status(400).json({
+          message: "Company email already exists",
+        });
+      }
+    }
+
+    if (AccessRole === "admin") {
+      if (!CompanyEmail) {
+        return res.status(400).json({
+          message: "Company email is required for admin access",
+        });
+      }
+
+      if (!AdminUsername || !AdminPassword) {
+        return res.status(400).json({
+          message: "Admin username and password are required",
+        });
+      }
+    }
+
     const employee = new Employee({
       FirstName,
       SecondName,
@@ -208,9 +306,22 @@ router.post("/", protect, adminOnly, async (req, res) => {
       Department,
       Location,
       Status,
+
+      CompanyEmail,
+      AccessRole,
+      CanLogin,
     });
 
     await employee.save();
+
+    if (AccessRole === "admin") {
+      await createOrUpdateAdminAccount({
+        CompanyEmail,
+        AdminUsername,
+        AdminPassword,
+        Department,
+      });
+    }
 
     res.status(201).json({
       message: "Employee added successfully",
@@ -281,6 +392,18 @@ router.get("/search/:keyword", protect, async (req, res) => {
             $options: "i",
           },
         },
+        {
+          CompanyEmail: {
+            $regex: keyword,
+            $options: "i",
+          },
+        },
+        {
+          AccessRole: {
+            $regex: keyword,
+            $options: "i",
+          },
+        },
       ],
     };
 
@@ -315,6 +438,11 @@ router.put("/:id", protect, adminOnly, async (req, res) => {
       Department,
       Location,
       Status,
+      CompanyEmail,
+      AccessRole,
+      CanLogin,
+      AdminUsername,
+      AdminPassword,
     } = getEmployeePayload(req.body);
 
     if (!FirstName || !SecondName || !EPFNumber || !Department || !Location) {
@@ -335,6 +463,25 @@ router.put("/:id", protect, adminOnly, async (req, res) => {
       });
     }
 
+    if (CompanyEmail) {
+      const duplicateEmail = await Employee.findOne({
+        CompanyEmail,
+        _id: { $ne: req.params.id },
+      });
+
+      if (duplicateEmail) {
+        return res.status(400).json({
+          message: "Company email already exists",
+        });
+      }
+    }
+
+    if (AccessRole === "admin" && !CompanyEmail) {
+      return res.status(400).json({
+        message: "Company email is required for admin access",
+      });
+    }
+
     const updatedEmployee = await Employee.findByIdAndUpdate(
       req.params.id,
       {
@@ -345,6 +492,10 @@ router.put("/:id", protect, adminOnly, async (req, res) => {
         Department,
         Location,
         Status,
+
+        CompanyEmail,
+        AccessRole,
+        CanLogin,
       },
       { new: true }
     );
@@ -352,6 +503,15 @@ router.put("/:id", protect, adminOnly, async (req, res) => {
     if (!updatedEmployee) {
       return res.status(404).json({
         message: "Employee not found",
+      });
+    }
+
+    if (AccessRole === "admin") {
+      await createOrUpdateAdminAccount({
+        CompanyEmail,
+        AdminUsername: AdminUsername || CompanyEmail,
+        AdminPassword,
+        Department,
       });
     }
 

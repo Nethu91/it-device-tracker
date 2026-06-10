@@ -10,6 +10,7 @@ const fs = require("fs");
 
 const { protect, adminOnly } = require("../middleware/authMiddleware");
 const User = require("../models/User");
+const Employee = require("../models/Employee");
 const verifyMicrosoftToken = require("../middleware/microsoftVerify");
 
 const uploadDir = "uploads";
@@ -30,12 +31,41 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
-const createAppToken = (user) => {
+/* =========================================
+   TOKEN HELPERS
+========================================= */
+
+const createAdminToken = (user) => {
   return jwt.sign(
     {
       id: user._id,
-      role: user.role,
+      role: "admin",
       email: user.email,
+      authProvider: user.authProvider || "local",
+      type: "admin",
+    },
+    process.env.JWT_SECRET || "jwtSecret",
+    {
+      expiresIn: "7d",
+    }
+  );
+};
+
+/*
+  IMPORTANT:
+  Microsoft login is only for employees.
+  Even if employee.AccessRole is "admin", Microsoft login must get role "user".
+  Admin full access is allowed only through username/password login.
+*/
+const createEmployeeToken = (employee) => {
+  return jwt.sign(
+    {
+      id: employee._id,
+      employeeId: employee._id,
+      role: "user",
+      email: employee.CompanyEmail,
+      authProvider: "microsoft",
+      type: "employee",
     },
     process.env.JWT_SECRET || "jwtSecret",
     {
@@ -46,19 +76,50 @@ const createAppToken = (user) => {
 
 const formatUser = (user) => ({
   id: user._id,
+  _id: user._id,
   username: user.username,
   email: user.email,
-  role: user.role,
+  role: "admin",
   phone: user.phone || "",
   department: user.department || "",
   position: user.position || "",
   profilePicture: user.profilePicture || "",
   authProvider: user.authProvider || "local",
+  type: "admin",
 });
+
+const formatEmployeeUser = (employee, microsoftName = "") => {
+  const fullName = `${employee.FirstName || ""} ${
+    employee.SecondName || ""
+  }`.trim();
+
+  return {
+    id: employee._id,
+    _id: employee._id,
+    username: fullName || microsoftName || employee.CompanyEmail,
+    email: employee.CompanyEmail,
+
+    // IMPORTANT: Microsoft login never grants admin privileges
+    role: "user",
+
+    authProvider: "microsoft",
+    type: "employee",
+
+    EPFNumber: employee.EPFNumber || "",
+    FirstName: employee.FirstName || "",
+    SecondName: employee.SecondName || "",
+    Department: employee.Department || "",
+    Location: employee.Location || "",
+    Position: employee.Position || "",
+    Designation: employee.Designation || "",
+    CompanyEmail: employee.CompanyEmail || "",
+    CanLogin: employee.CanLogin !== false,
+  };
+};
 
 /* =========================================
    ADMIN ONLY REGISTER
-   Used by User Management
+   Creates admin credentials only
 ========================================= */
 
 router.post(
@@ -68,7 +129,7 @@ router.post(
   upload.single("profilePicture"),
   async (req, res) => {
     try {
-      const { username, email, password, role, phone, department, position } =
+      const { username, email, password, phone, department, position } =
         req.body;
 
       if (!username || !email || !password) {
@@ -80,12 +141,15 @@ router.post(
       const normalizedEmail = email.toLowerCase().trim();
 
       const existingUser = await User.findOne({
-        email: normalizedEmail,
+        $or: [
+          { email: normalizedEmail },
+          { username: username.trim() },
+        ],
       });
 
       if (existingUser) {
         return res.status(400).json({
-          message: "User already exists",
+          message: "Admin account already exists",
         });
       }
 
@@ -95,7 +159,7 @@ router.post(
         username: username.trim(),
         email: normalizedEmail,
         password: hashedPassword,
-        role: role || "user",
+        role: "admin",
         phone: phone || "",
         department: department || "",
         position: position || "",
@@ -106,7 +170,7 @@ router.post(
       await user.save();
 
       res.status(201).json({
-        message: "User created successfully",
+        message: "Admin account created successfully",
         user: formatUser(user),
       });
     } catch (error) {
@@ -121,16 +185,19 @@ router.post(
 );
 
 /* =========================================
-   EMAIL PASSWORD LOGIN
+   EMAIL / USERNAME PASSWORD LOGIN
+   Admins only
 ========================================= */
 
 router.post("/login", async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, username, password } = req.body;
 
-    if (!email) {
+    const loginId = email || username;
+
+    if (!loginId) {
       return res.status(400).json({
-        message: "Email is required",
+        message: "Admin email or username is required",
       });
     }
 
@@ -140,21 +207,30 @@ router.post("/login", async (req, res) => {
       });
     }
 
-    const normalizedEmail = email.toLowerCase().trim();
+    const normalizedLoginId = loginId.toLowerCase().trim();
 
     const user = await User.findOne({
-      email: normalizedEmail,
+      $or: [
+        { email: normalizedLoginId },
+        { username: normalizedLoginId },
+      ],
     });
 
     if (!user) {
       return res.status(400).json({
-        message: "Invalid email",
+        message: "Invalid admin email or username",
       });
     }
 
     if (user.authProvider === "microsoft" || !user.password) {
       return res.status(400).json({
         message: "Please login with Microsoft",
+      });
+    }
+
+    if (user.role !== "admin") {
+      return res.status(403).json({
+        message: "Normal users must login with Microsoft",
       });
     }
 
@@ -166,10 +242,10 @@ router.post("/login", async (req, res) => {
       });
     }
 
-    const token = createAppToken(user);
+    const token = createAdminToken(user);
 
     res.json({
-      message: "Login successful",
+      message: "Admin login successful",
       token,
       user: formatUser(user),
     });
@@ -185,7 +261,8 @@ router.post("/login", async (req, res) => {
 
 /* =========================================
    SECURE MICROSOFT LOGIN
-   Only User Management approved users can login
+   Checks employees collection
+   Always returns user role only
 ========================================= */
 
 router.post("/microsoft-login", async (req, res) => {
@@ -210,7 +287,7 @@ router.post("/microsoft-login", async (req, res) => {
       decoded.upn ||
       decoded.unique_name;
 
-    const username =
+    const microsoftName =
       decoded.name ||
       decoded.given_name ||
       (email ? email.split("@")[0] : "Microsoft User");
@@ -229,33 +306,38 @@ router.post("/microsoft-login", async (req, res) => {
       });
     }
 
-    const user = await User.findOne({
-      email: normalizedEmail,
+    const employee = await Employee.findOne({
+      CompanyEmail: normalizedEmail,
     });
 
-    if (!user) {
+    if (!employee) {
       return res.status(403).json({
         message:
           "Your Microsoft account is not approved. Please contact the system administrator.",
       });
     }
 
-    user.authProvider = "microsoft";
-
-    if (!user.username) {
-      user.username = username;
+    if (employee.CanLogin === false) {
+      return res.status(403).json({
+        message:
+          "Your account login access is disabled. Please contact the system administrator.",
+      });
     }
 
-    await user.save();
+    if (!employee.CompanyEmail) {
+      employee.CompanyEmail = normalizedEmail;
+    }
 
-    console.log("MICROSOFT USER APPROVED:", user);
+    await employee.save();
 
-    const token = createAppToken(user);
+    console.log("MICROSOFT EMPLOYEE APPROVED:", normalizedEmail);
+
+    const token = createEmployeeToken(employee);
 
     res.status(200).json({
       message: "Microsoft login successful",
       token,
-      user: formatUser(user),
+      user: formatEmployeeUser(employee, microsoftName),
     });
   } catch (error) {
     console.log("Microsoft token verify error:", error);
@@ -269,10 +351,25 @@ router.post("/microsoft-login", async (req, res) => {
 
 /* =========================================
    GET LOGGED USER PROFILE
+   Supports admin users and employee Microsoft users
 ========================================= */
 
 router.get("/profile", protect, async (req, res) => {
   try {
+    if (req.user.type === "employee" || req.user.authProvider === "microsoft") {
+      const employee = await Employee.findById(req.user.id);
+
+      if (!employee) {
+        return res.status(404).json({
+          message: "Employee profile not found",
+        });
+      }
+
+      return res.json({
+        user: formatEmployeeUser(employee),
+      });
+    }
+
     const user = await User.findById(req.user.id).select("-password");
 
     if (!user) {
@@ -296,8 +393,8 @@ router.get("/profile", protect, async (req, res) => {
 
 /* =========================================
    UPDATE PROFILE
-   Normal user cannot change email
-   Admin can change email
+   Admin can update admin profile
+   Employee Microsoft users cannot change email here
 ========================================= */
 
 router.put(
@@ -307,6 +404,38 @@ router.put(
   async (req, res) => {
     try {
       const { username, email, phone, department, position } = req.body;
+
+      if (req.user.type === "employee" || req.user.authProvider === "microsoft") {
+        if (req.user.id !== req.params.id) {
+          return res.status(403).json({
+            message: "Not allowed to update this profile",
+          });
+        }
+
+        const updateEmployeeData = {
+          Department: department,
+          Position: position,
+        };
+
+        const updatedEmployee = await Employee.findByIdAndUpdate(
+          req.params.id,
+          updateEmployeeData,
+          {
+            new: true,
+          }
+        );
+
+        if (!updatedEmployee) {
+          return res.status(404).json({
+            message: "Employee not found",
+          });
+        }
+
+        return res.json({
+          message: "Profile updated successfully",
+          user: formatEmployeeUser(updatedEmployee),
+        });
+      }
 
       if (req.user.id !== req.params.id && req.user.role !== "admin") {
         return res.status(403).json({
@@ -357,8 +486,9 @@ router.put(
     }
   }
 );
+
 /* =========================================
-   GET ALL USERS - ADMIN ONLY
+   GET ALL ADMIN USERS - ADMIN ONLY
 ========================================= */
 
 router.get("/users", protect, adminOnly, async (req, res) => {
@@ -379,7 +509,7 @@ router.get("/users", protect, adminOnly, async (req, res) => {
 });
 
 /* =========================================
-   DELETE USER - ADMIN ONLY
+   DELETE ADMIN USER - ADMIN ONLY
 ========================================= */
 
 router.delete("/users/:id", protect, adminOnly, async (req, res) => {
@@ -410,13 +540,21 @@ router.delete("/users/:id", protect, adminOnly, async (req, res) => {
     });
   }
 });
+
 /* =========================================
    CHANGE PASSWORD
+   Admin local accounts only
 ========================================= */
 
 router.put("/change-password/:id", protect, async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
+
+    if (req.user.type === "employee" || req.user.authProvider === "microsoft") {
+      return res.status(400).json({
+        message: "Microsoft users cannot change password here",
+      });
+    }
 
     if (req.user.id !== req.params.id && req.user.role !== "admin") {
       return res.status(403).json({

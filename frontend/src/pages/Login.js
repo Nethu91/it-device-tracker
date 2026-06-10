@@ -33,7 +33,11 @@ function Login() {
     });
   };
 
-  // Normal email/password login
+  /* =========================================
+     ADMIN EMAIL / PASSWORD LOGIN
+     Only admin accounts from users collection
+  ========================================= */
+
   const loginUser = async (e) => {
     e.preventDefault();
 
@@ -47,19 +51,28 @@ function Login() {
 
       const res = await axios.post(`${API_URL}/auth/login`, payload);
 
+      if (String(res.data.user?.role || "").toLowerCase() !== "admin") {
+        alert("Normal users must login with Microsoft");
+        return;
+      }
+
       localStorage.setItem("token", res.data.token);
       localStorage.setItem("user", JSON.stringify(res.data.user));
 
       navigate("/", { replace: true });
     } catch (err) {
-      console.error("Normal login error:", err.response?.data || err.message);
-      alert(err.response?.data?.message || "Login failed");
+      console.error("Admin login error:", err.response?.data || err.message);
+      alert(err.response?.data?.message || "Admin login failed");
     } finally {
       setNormalLoginLoading(false);
     }
   };
 
-  // Microsoft login button
+  /* =========================================
+     EMPLOYEE MICROSOFT LOGIN
+     Employees use company Microsoft email only
+  ========================================= */
+
   const handleMicrosoftLogin = async () => {
     try {
       localStorage.removeItem("token");
@@ -75,7 +88,10 @@ function Login() {
     }
   };
 
-  // Microsoft redirect return handling
+  /* =========================================
+     MICROSOFT REDIRECT RETURN HANDLING
+  ========================================= */
+
   useEffect(() => {
     const microsoftBackendLogin = async () => {
       try {
@@ -159,47 +175,61 @@ function Login() {
       <div className="auth-card">
         <img src="/swisstekaluminiumlogo.png" alt="Swisstek" />
 
-        <h2>Login</h2>
-        <p>Sign in to IT Device Tracker</p>
+        <h2>IT Device Tracker</h2>
+        <p>Secure access portal for Swisstek Aluminium</p>
 
-        <form onSubmit={loginUser}>
-          <input
-            name="email"
-            type="email"
-            placeholder="Email"
-            value={form.email}
-            onChange={handleChange}
-            required
-          />
+        <div className="login-section">
+          <h3>Admin Login</h3>
+          <p className="login-note">
+            Admins can sign in using admin email / username and password.
+          </p>
 
-          <input
-            name="password"
-            type="password"
-            placeholder="Password"
-            value={form.password}
-            onChange={handleChange}
-            required
-          />
+          <form onSubmit={loginUser}>
+            <input
+              name="email"
+              type="email"
+              placeholder="Admin Email / Username"
+              value={form.email}
+              onChange={handleChange}
+              required
+            />
 
-          <button type="submit" disabled={normalLoginLoading}>
-            {normalLoginLoading ? "Signing in..." : "Sign In"}
-          </button>
-        </form>
+            <input
+              name="password"
+              type="password"
+              placeholder="Admin Password"
+              value={form.password}
+              onChange={handleChange}
+              required
+            />
+
+            <button type="submit" disabled={normalLoginLoading}>
+              {normalLoginLoading ? "Signing in..." : "Admin Sign In"}
+            </button>
+          </form>
+        </div>
 
         <div className="login-divider">
           <span>OR</span>
         </div>
 
-        <button
-          type="button"
-          className="microsoft-btn"
-          onClick={handleMicrosoftLogin}
-          disabled={msLoginLoading || inProgress !== InteractionStatus.None}
-        >
-          {msLoginLoading || inProgress !== InteractionStatus.None
-            ? "Signing in..."
-            : "Sign in with Microsoft"}
-        </button>
+        <div className="login-section">
+          <h3>Employee Login</h3>
+          <p className="login-note">
+            Employees must use Microsoft company email to sign in.
+          </p>
+
+          <button
+            type="button"
+            className="microsoft-btn"
+            onClick={handleMicrosoftLogin}
+            disabled={msLoginLoading || inProgress !== InteractionStatus.None}
+          >
+            {msLoginLoading || inProgress !== InteractionStatus.None
+              ? "Signing in..."
+              : "Sign in with Microsoft"}
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -26,10 +26,8 @@ import FingerprintMachines from "./pages/FingerprintMachines";
 
 import Login from "./pages/Login";
 import Profile from "./pages/Profile";
-import Users from "./pages/Users";
 import Employees from "./pages/Employees";
 
-// New dynamic GUI pages
 import InterfaceBuilder from "./pages/InterfaceBuilder";
 import CustomDevicePage from "./pages/CustomDevicePage";
 
@@ -154,8 +152,7 @@ function Layout() {
 
           {isAdmin && (
             <>
-              <Link to="/employees">Employee Management</Link>
-              <Link to="/users">User Management</Link>
+              <Link to="/employees">Employee & Access Management</Link>
               <Link to="/interface-builder">GUI Builder</Link>
             </>
           )}
@@ -188,13 +185,10 @@ function Layout() {
           />
 
           <Route
-            path="/users"
-            element={isAdmin ? <Users /> : <Navigate to="/" replace />}
-          />
-
-          <Route
             path="/interface-builder"
-            element={isAdmin ? <InterfaceBuilder /> : <Navigate to="/" replace />}
+            element={
+              isAdmin ? <InterfaceBuilder /> : <Navigate to="/" replace />
+            }
           />
 
           <Route path="/custom-devices" element={<CustomDevicePage />} />
@@ -211,7 +205,10 @@ function Layout() {
           <Route path="/ups" element={<UPS />} />
           <Route path="/smart-boards" element={<SmartBoards />} />
           <Route path="/portable-trackers" element={<PortableTrackers />} />
-          <Route path="/fingerprint-machines" element={<FingerprintMachines />} />
+          <Route
+            path="/fingerprint-machines"
+            element={<FingerprintMachines />}
+          />
 
           <Route path="/profile" element={<Profile />} />
           <Route path="/login" element={<Login />} />

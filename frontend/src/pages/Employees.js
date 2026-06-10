@@ -7,8 +7,9 @@ const API_URL =
     : "https://it-device-tracker.onrender.com";
 
 function Employees() {
-  const user = JSON.parse(localStorage.getItem("user"));
-  const isAdmin = user?.role === "admin";
+  const storedUser = localStorage.getItem("user");
+  const user = storedUser ? JSON.parse(storedUser) : null;
+  const isAdmin = String(user?.role || "").toLowerCase() === "admin";
 
   const [employees, setEmployees] = useState([]);
   const [departments, setDepartments] = useState([]);
@@ -21,6 +22,13 @@ function Employees() {
     Department: "",
     Location: "",
     Status: "Active",
+
+    CompanyEmail: "",
+    AccessRole: "user",
+    CanLogin: true,
+
+    AdminUsername: "",
+    AdminPassword: "",
   });
 
   const [newDepartment, setNewDepartment] = useState("");
@@ -39,13 +47,6 @@ function Employees() {
     console.log(fallback, data || err.message);
     alert(data?.message || data?.error || err.message || fallback);
   };
-
-  useEffect(() => {
-    fetchEmployees();
-    fetchDepartments();
-    fetchLocations();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const normalizeArray = (data, key) => {
     if (Array.isArray(data)) return data;
@@ -90,12 +91,19 @@ function Employees() {
     }
   };
 
+  useEffect(() => {
+    fetchEmployees();
+    fetchDepartments();
+    fetchLocations();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    const { name, value, type, checked } = e.target;
 
     setForm((prev) => ({
       ...prev,
-      [name]: value,
+      [name]: type === "checkbox" ? checked : value,
     }));
   };
 
@@ -107,7 +115,15 @@ function Employees() {
       Department: "",
       Location: "",
       Status: "Active",
+
+      CompanyEmail: "",
+      AccessRole: "user",
+      CanLogin: true,
+
+      AdminUsername: "",
+      AdminPassword: "",
     });
+
     setEditId(null);
   };
 
@@ -179,6 +195,31 @@ function Employees() {
       return false;
     }
 
+    if (
+      form.CompanyEmail.trim() &&
+      !form.CompanyEmail.toLowerCase().trim().endsWith("@swisstekaluminium.com")
+    ) {
+      alert("Please enter a valid Swisstek company Microsoft email");
+      return false;
+    }
+
+    if (form.AccessRole === "admin") {
+      if (!form.CompanyEmail.trim()) {
+        alert("Company email is required for admin account");
+        return false;
+      }
+
+      if (!form.AdminUsername.trim()) {
+        alert("Admin username is required");
+        return false;
+      }
+
+      if (!editId && !form.AdminPassword.trim()) {
+        alert("Admin password is required for new admin account");
+        return false;
+      }
+    }
+
     return true;
   };
 
@@ -193,6 +234,8 @@ function Employees() {
     if (!validateEmployeeForm()) return;
 
     try {
+      const companyEmail = form.CompanyEmail.trim().toLowerCase();
+
       const payload = {
         FirstName: form.FirstName.trim(),
         SecondName: form.SecondName.trim(),
@@ -201,13 +244,24 @@ function Employees() {
         Location: form.Location.trim(),
         Status: form.Status || "Active",
 
-        // lowercase fields also sent for backend compatibility
+        CompanyEmail: companyEmail,
+        AccessRole: form.AccessRole || "user",
+        CanLogin: Boolean(form.CanLogin),
+
+        AdminUsername: form.AdminUsername.trim(),
+        AdminPassword: form.AdminPassword,
+
         firstName: form.FirstName.trim(),
         secondName: form.SecondName.trim(),
         epfNumber: form.EPFNumber.toString().trim(),
         department: form.Department.trim(),
         location: form.Location.trim(),
         status: form.Status || "Active",
+        companyEmail,
+        accessRole: form.AccessRole || "user",
+        canLogin: Boolean(form.CanLogin),
+        adminUsername: form.AdminUsername.trim(),
+        adminPassword: form.AdminPassword,
       };
 
       console.log("SENDING EMPLOYEE:", payload);
@@ -241,6 +295,15 @@ function Employees() {
       Department: emp.Department || emp.department || "",
       Location: emp.Location || emp.location || "",
       Status: emp.Status || emp.status || "Active",
+
+      CompanyEmail: emp.CompanyEmail || emp.companyEmail || "",
+      AccessRole: emp.AccessRole || emp.accessRole || "user",
+      CanLogin: emp.CanLogin === false || emp.canLogin === false ? false : true,
+
+      AdminUsername: emp.CompanyEmail
+        ? emp.CompanyEmail.split("@")[0]
+        : emp.FullName || "",
+      AdminPassword: "",
     });
 
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -271,7 +334,7 @@ function Employees() {
   return (
     <div className="page">
       <div className="page-header">
-        <h1>Employee Management</h1>
+        <h1>Employee & Access Management</h1>
         <span className="count-badge">{employees.length} Employees</span>
       </div>
 
@@ -363,6 +426,59 @@ function Employees() {
             <option value="Inactive">Inactive</option>
           </select>
 
+          <input
+            name="CompanyEmail"
+            type="email"
+            placeholder="Company Microsoft Email"
+            value={form.CompanyEmail}
+            onChange={handleChange}
+          />
+
+          <select
+            name="AccessRole"
+            value={form.AccessRole}
+            onChange={handleChange}
+          >
+            <option value="user">User</option>
+            <option value="admin">Admin</option>
+          </select>
+
+          <label className="checkbox-label">
+            <input
+              type="checkbox"
+              name="CanLogin"
+              checked={form.CanLogin}
+              onChange={handleChange}
+            />
+            Allow Microsoft Login
+          </label>
+
+          {form.AccessRole === "admin" && (
+            <>
+              <input
+                name="AdminUsername"
+                type="text"
+                placeholder="Admin Username"
+                value={form.AdminUsername}
+                onChange={handleChange}
+                required
+              />
+
+              <input
+                name="AdminPassword"
+                type="password"
+                placeholder={
+                  editId
+                    ? "Admin Password (leave blank to keep old password)"
+                    : "Admin Password"
+                }
+                value={form.AdminPassword}
+                onChange={handleChange}
+                required={!editId}
+              />
+            </>
+          )}
+
           <button className="btn-save" type="submit">
             {editId ? "Update Employee" : "Add Employee"}
           </button>
@@ -379,13 +495,13 @@ function Employees() {
         <table>
           <thead>
             <tr>
-              <th>First Name</th>
-              <th>Second Name</th>
-              <th>Full Name</th>
               <th>EPF</th>
+              <th>Name</th>
               <th>Department</th>
               <th>Location</th>
-              <th>Status</th>
+              <th>Company Email</th>
+              <th>Access Role</th>
+              <th>Can Login</th>
               {isAdmin && <th>Action</th>}
             </tr>
           </thead>
@@ -393,22 +509,35 @@ function Employees() {
           <tbody>
             {employees.map((emp) => (
               <tr key={emp._id}>
-                <td>{emp.FirstName || emp.firstName}</td>
-                <td>{emp.SecondName || emp.secondName}</td>
-                <td>{getFullName(emp)}</td>
-                <td>{emp.EPFNumber || emp.epfNumber}</td>
-                <td>{emp.Department || emp.department}</td>
-                <td>{emp.Location || emp.location}</td>
+                <td>{emp.EPFNumber || emp.epfNumber || "-"}</td>
+
+                <td>{getFullName(emp) || "-"}</td>
+
+                <td>{emp.Department || emp.department || "-"}</td>
+
+                <td>{emp.Location || emp.location || "-"}</td>
+
+                <td>{emp.CompanyEmail || emp.companyEmail || "-"}</td>
+
                 <td>
-                  <span className={`status-pill ${emp.Status || emp.status}`}>
-                    {emp.Status || emp.status}
+                  <span className="status-pill Active">
+                    {emp.AccessRole || emp.accessRole || "user"}
                   </span>
+                </td>
+
+                <td>
+                  {emp.CanLogin === false || emp.canLogin === false ? (
+                    <span className="status-pill Inactive">Disabled</span>
+                  ) : (
+                    <span className="status-pill Active">Enabled</span>
+                  )}
                 </td>
 
                 {isAdmin && (
                   <td>
                     <button
                       className="btn-edit"
+                      type="button"
                       onClick={() => editEmployee(emp)}
                     >
                       Edit
@@ -416,6 +545,7 @@ function Employees() {
 
                     <button
                       className="btn-delete"
+                      type="button"
                       onClick={() => deleteEmployee(emp._id)}
                     >
                       Delete

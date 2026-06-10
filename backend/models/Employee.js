@@ -17,6 +17,7 @@ const employeeSchema = new mongoose.Schema(
     FullName: {
       type: String,
       trim: true,
+      default: "",
     },
 
     EPFNumber: {
@@ -35,6 +36,24 @@ const employeeSchema = new mongoose.Schema(
       type: String,
       required: true,
       trim: true,
+    },
+
+    CompanyEmail: {
+      type: String,
+      lowercase: true,
+      trim: true,
+      default: "",
+    },
+
+    AccessRole: {
+      type: String,
+      enum: ["user", "admin"],
+      default: "user",
+    },
+
+    CanLogin: {
+      type: Boolean,
+      default: true,
     },
 
     Status: {
