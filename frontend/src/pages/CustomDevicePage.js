@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import axios from "axios";
 import * as XLSX from "xlsx";
 
@@ -20,10 +20,7 @@ function CustomDevicePage() {
   const [editId, setEditId] = useState(null);
   const [search, setSearch] = useState("");
 
-  // Realtime age update
   const [todayDate, setTodayDate] = useState(new Date());
-
-  // Custom date for checking age as of selected date
   const [ageAsOfDate, setAgeAsOfDate] = useState("");
 
   const getHeaders = () => ({
@@ -31,10 +28,6 @@ function CustomDevicePage() {
       Authorization: `Bearer ${localStorage.getItem("token")}`,
     },
   });
-
-  /* =========================================
-     REALTIME AGE CALCULATION
-  ========================================= */
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -120,7 +113,6 @@ function CustomDevicePage() {
 
     const preferredField = dateFields.find((field) => {
       const fieldText = normalizeFieldText(`${field.label} ${field.name}`);
-
       return priorityKeywords.some((keyword) => fieldText.includes(keyword));
     });
 
@@ -150,10 +142,6 @@ function CustomDevicePage() {
 
     return date.toISOString().slice(0, 10);
   };
-
-  /* =========================================
-     LOAD DATA
-  ========================================= */
 
   const loadTemplates = async () => {
     try {
@@ -220,10 +208,6 @@ function CustomDevicePage() {
 
     await loadDevices(id);
   };
-
-  /* =========================================
-     FORM HANDLERS
-  ========================================= */
 
   const handleChange = (name, value) => {
     setFormData((prev) => ({
@@ -362,11 +346,7 @@ function CustomDevicePage() {
     }
   };
 
-  /* =========================================
-     SEARCH + EXPORT
-  ========================================= */
-
-  const filteredDevices = useMemo(() => {
+  const filteredDevices = (() => {
     const keyword = search.trim().toLowerCase();
 
     if (!keyword) return devices;
@@ -382,7 +362,7 @@ function CustomDevicePage() {
         .toLowerCase()
         .includes(keyword)
     );
-  }, [search, devices, todayDate, selectedTemplate, ageAsOfDate]);
+  })();
 
   const downloadExcel = () => {
     if (!isAdmin) {
@@ -434,10 +414,6 @@ function CustomDevicePage() {
     XLSX.utils.book_append_sheet(workbook, worksheet, selectedTemplate.name);
     XLSX.writeFile(workbook, `${selectedTemplate.name}_Data.xlsx`);
   };
-
-  /* =========================================
-     RENDER FIELDS
-  ========================================= */
 
   const renderField = (field) => {
     if (field.type === "textarea") {
