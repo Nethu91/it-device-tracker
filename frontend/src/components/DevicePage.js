@@ -150,6 +150,12 @@ function DevicePage({ title, deviceType }) {
   const [statusFilter, setStatusFilter] = useState("");
   const [search, setSearch] = useState("");
 
+  // Realtime age update
+  const [todayDate, setTodayDate] = useState(new Date());
+
+  // Custom date for checking age as of selected date
+  const [ageAsOfDate, setAgeAsOfDate] = useState("");
+
   const user = JSON.parse(localStorage.getItem("user"));
   const isAdmin = user?.role === "admin";
 
@@ -159,21 +165,78 @@ function DevicePage({ title, deviceType }) {
     },
   });
 
-  const calculateAge = (purchaseDate) => {
-    if (!purchaseDate) return "";
+  /* =========================================
+     REALTIME AGE CALCULATION
+     Calculates age from selected base date to today/custom date
+  ========================================= */
 
-    const start = new Date(purchaseDate);
-    const today = new Date();
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTodayDate(new Date());
+    }, 60000);
 
-    let years = today.getFullYear() - start.getFullYear();
-    let months = today.getMonth() - start.getMonth();
+    return () => clearInterval(timer);
+  }, []);
+
+  const calculateAge = (dateValue, customEndDate = "") => {
+    if (!dateValue) return "-";
+
+    const startDate = new Date(dateValue);
+    const endDate = customEndDate ? new Date(customEndDate) : new Date(todayDate);
+
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return "-";
+
+    startDate.setHours(0, 0, 0, 0);
+    endDate.setHours(0, 0, 0, 0);
+
+    if (startDate > endDate) return "0 Years 0 Months 0 Days";
+
+    let years = endDate.getFullYear() - startDate.getFullYear();
+    let months = endDate.getMonth() - startDate.getMonth();
+    let days = endDate.getDate() - startDate.getDate();
+
+    if (days < 0) {
+      months--;
+
+      const previousMonth = new Date(
+        endDate.getFullYear(),
+        endDate.getMonth(),
+        0
+      );
+
+      days += previousMonth.getDate();
+    }
 
     if (months < 0) {
       years--;
       months += 12;
     }
 
-    return `${years} Years ${months} Months`;
+    if (years < 0) return "0 Years 0 Months 0 Days";
+
+    return `${years} Year${years !== 1 ? "s" : ""} ${months} Month${
+      months !== 1 ? "s" : ""
+    } ${days} Day${days !== 1 ? "s" : ""}`;
+  };
+
+  const getAgeBaseDate = (device) => {
+    return (
+      device.AgeBaseDate ||
+      device.ageBaseDate ||
+      device.CustomDate ||
+      device.customDate ||
+      device.PurchaseDate ||
+      device.purchaseDate ||
+      device.Purchase ||
+      device.purchase ||
+      device.Purchase_Date ||
+      device.purchase_date ||
+      ""
+    );
+  };
+
+  const getDeviceAge = (device) => {
+    return calculateAge(getAgeBaseDate(device), ageAsOfDate);
   };
 
   const normalizePreviousUsers = (value) => {
@@ -269,51 +332,51 @@ function DevicePage({ title, deviceType }) {
     }
   };
 
- const loadEmployees = async () => {
-  try {
-    const res = await axios.get(EMPLOYEE_API, getHeaders());
+  const loadEmployees = async () => {
+    try {
+      const res = await axios.get(EMPLOYEE_API, getHeaders());
 
-    const employeeData = Array.isArray(res.data)
-      ? res.data
-      : res.data.employees || res.data.data || [];
+      const employeeData = Array.isArray(res.data)
+        ? res.data
+        : res.data.employees || res.data.data || [];
 
-    console.log("EMPLOYEES LOADED:", employeeData);
-    console.log("FIRST EMPLOYEE:", employeeData?.[0]);
+      console.log("EMPLOYEES LOADED:", employeeData);
+      console.log("FIRST EMPLOYEE:", employeeData?.[0]);
 
-    setAllEmployees(employeeData);
-  } catch (err) {
-    console.error("Load employees error:", err.response?.data || err.message);
-    setAllEmployees([]);
-  }
-};
+      setAllEmployees(employeeData);
+    } catch (err) {
+      console.error("Load employees error:", err.response?.data || err.message);
+      setAllEmployees([]);
+    }
+  };
 
-// ADD THIS AFTER loadEmployees
-const loadDepartments = async () => {
-  try {
-    const res = await axios.get(DEPARTMENT_API, getHeaders());
+  const loadDepartments = async () => {
+    try {
+      const res = await axios.get(DEPARTMENT_API, getHeaders());
 
-    const departmentData = Array.isArray(res.data)
-      ? res.data
-      : res.data.departments || res.data.data || [];
+      const departmentData = Array.isArray(res.data)
+        ? res.data
+        : res.data.departments || res.data.data || [];
 
-    console.log("DEPARTMENTS LOADED:", departmentData);
+      console.log("DEPARTMENTS LOADED:", departmentData);
 
-    setDepartments(departmentData);
-  } catch (err) {
-    console.error("Load departments error:", err.response?.data || err.message);
-    setDepartments([]);
-  }
-};
+      setDepartments(departmentData);
+    } catch (err) {
+      console.error("Load departments error:", err.response?.data || err.message);
+      setDepartments([]);
+    }
+  };
 
-useEffect(() => {
-  setForm({ ...emptyForm, DeviceType: deviceType });
-  setEditId(null);
-  loadDevices();
-  loadEmployees();
-  loadDepartments(); // ADD THIS
+  useEffect(() => {
+    setForm({ ...emptyForm, DeviceType: deviceType });
+    setEditId(null);
+    setAgeAsOfDate("");
+    loadDevices();
+    loadEmployees();
+    loadDepartments();
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [deviceType]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deviceType]);
 
   // ── Form handlers ──────────────────────────────────────────────────────────
 
@@ -362,10 +425,10 @@ useEffect(() => {
     const payload = { ...form };
 
     if (!needsEmployee) {
-  payload.EmployeeName = "";
-  payload.EPFNumber = "";
-  payload.Designation = "";
-}
+      payload.EmployeeName = "";
+      payload.EPFNumber = "";
+      payload.Designation = "";
+    }
 
     payload.PreviousUsers = normalizePreviousUsers(form.PreviousUsers).filter(
       (u) => u.trim() !== ""
@@ -380,19 +443,19 @@ useEffect(() => {
     }
 
     if (isWirelessAPDevice) {
-  payload.EmployeeName = "";
-  payload.EPFNumber = "";
-  payload.DeviceName = "";
-  payload.Model = "";
-  payload.HandoverDate = "";
-}
+      payload.EmployeeName = "";
+      payload.EPFNumber = "";
+      payload.DeviceName = "";
+      payload.Model = "";
+      payload.HandoverDate = "";
+    }
 
     if (isFingerprintDevice) {
-  payload.EmployeeName = "";
-  payload.EPFNumber = "";
-  payload.Model = "";
-  payload.HandoverDate = "";
-}
+      payload.EmployeeName = "";
+      payload.EPFNumber = "";
+      payload.Model = "";
+      payload.HandoverDate = "";
+    }
 
     if (isPortableTrackerDevice) {
       payload.Model = "";
@@ -571,6 +634,7 @@ useEffect(() => {
       d.PortableTracking,
       d.PortableTrackingNumber,
       d.PortableTrackingSIMNumber,
+      getDeviceAge(d),
       previousUsersText,
     ]
       .join(" ")
@@ -615,12 +679,12 @@ useEffect(() => {
       PurchaseDate: d.PurchaseDate ? d.PurchaseDate.slice(0, 10) : "",
       HandoverDate: d.HandoverDate ? d.HandoverDate.slice(0, 10) : "",
       WarrantyPeriod: d.WarrantyPeriod,
-      Age: calculateAge(d.PurchaseDate),
+      Age: getDeviceAge(d),
       PreviousUsers:
         d.PreviousUsers && d.PreviousUsers.length > 0
           ? normalizePreviousUsers(d.PreviousUsers).join(", ")
           : "",
-      Notes: d.Notes,                         // ← fixed (was broken syntax)
+      Notes: d.Notes,
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(exportData);
@@ -632,7 +696,6 @@ useEffect(() => {
 
   // ── Render helpers ─────────────────────────────────────────────────────────
 
-  // Native datalist-based employee autocomplete (avoids CSS overflow issues)
   const renderEmployeeAutocomplete = (fieldName, placeholder) => {
     const listId =
       fieldName === "EmployeeName" ? "employee-name-list" : "employee-epf-list";
@@ -696,24 +759,26 @@ useEffect(() => {
       readOnly={readOnly}
     />
   );
-const renderDepartmentInput = () => (
-  <>
-    <input
-      name="Department"
-      list="department-list"
-      placeholder="Select or type Department"
-      value={form.Department}
-      onChange={handleChange}
-      autoComplete="off"
-    />
 
-    <datalist id="department-list">
-      {departments.map((dep) => (
-        <option key={dep._id || dep.Name} value={dep.Name} />
-      ))}
-    </datalist>
-  </>
-);
+  const renderDepartmentInput = () => (
+    <>
+      <input
+        name="Department"
+        list="department-list"
+        placeholder="Select or type Department"
+        value={form.Department}
+        onChange={handleChange}
+        autoComplete="off"
+      />
+
+      <datalist id="department-list">
+        {departments.map((dep) => (
+          <option key={dep._id || dep.Name} value={dep.Name} />
+        ))}
+      </datalist>
+    </>
+  );
+
   const renderSelect = (name, options, placeholder) => (
     <select name={name} value={form[name]} onChange={handleChange}>
       <option value="">{placeholder}</option>
@@ -739,7 +804,7 @@ const renderDepartmentInput = () => (
       ? [
           {
             label: "Department",
-value: "Department",
+            value: "Department",
           },
         ]
       : []),
@@ -822,7 +887,6 @@ value: "Department",
           { label: "Description", value: "Description" },
           { label: "Vendor", value: "Vendor" },
           { label: "Current Location", value: "CurrentLocation" },
-          
         ]
       : []),
 
@@ -876,7 +940,11 @@ value: "Department",
       ? [{ label: "Handover", value: "HandoverDate" }]
       : []),
 
-    { label: "Age", value: "Age" },
+    {
+      label: ageAsOfDate ? `Age as of ${ageAsOfDate}` : "Age",
+      value: "Age",
+    },
+
     { label: "Previous Users", value: "PreviousUsers" },
     { label: "Notes", value: "Notes" },
   ];
@@ -889,7 +957,7 @@ value: "Department",
     }
 
     if (key === "Age") {
-      return calculateAge(device.PurchaseDate);
+      return getDeviceAge(device);
     }
 
     if (key === "PreviousUsers") {
@@ -925,37 +993,39 @@ value: "Department",
         <h1>{title}</h1>
         <span className="device-count">{filteredDevices.length} Devices</span>
       </div>
-<div className="device-dashboard-cards">
-  <div className="device-stat-card">
-    <h3>Total</h3>
-    <p>{devices.length}</p>
-  </div>
 
-  <div className="device-stat-card">
-    <h3>Available</h3>
-    <p>{devices.filter((d) => d.Status === "Available").length}</p>
-  </div>
+      <div className="device-dashboard-cards">
+        <div className="device-stat-card">
+          <h3>Total</h3>
+          <p>{devices.length}</p>
+        </div>
 
-  <div className="device-stat-card">
-    <h3>Assigned</h3>
-    <p>{devices.filter((d) => d.Status === "Assigned").length}</p>
-  </div>
+        <div className="device-stat-card">
+          <h3>Available</h3>
+          <p>{devices.filter((d) => d.Status === "Available").length}</p>
+        </div>
 
-  <div className="device-stat-card">
-    <h3>In Repair</h3>
-    <p>{devices.filter((d) => d.Status === "In Repair").length}</p>
-  </div>
+        <div className="device-stat-card">
+          <h3>Assigned</h3>
+          <p>{devices.filter((d) => d.Status === "Assigned").length}</p>
+        </div>
 
-  <div className="device-stat-card">
-    <h3>Retired</h3>
-    <p>{devices.filter((d) => d.Status === "Retired").length}</p>
-  </div>
+        <div className="device-stat-card">
+          <h3>In Repair</h3>
+          <p>{devices.filter((d) => d.Status === "In Repair").length}</p>
+        </div>
 
-  <div className="device-stat-card">
-    <h3>Missing</h3>
-    <p>{devices.filter((d) => d.Status === "Missing").length}</p>
-  </div>
-</div>
+        <div className="device-stat-card">
+          <h3>Retired</h3>
+          <p>{devices.filter((d) => d.Status === "Retired").length}</p>
+        </div>
+
+        <div className="device-stat-card">
+          <h3>Missing</h3>
+          <p>{devices.filter((d) => d.Status === "Missing").length}</p>
+        </div>
+      </div>
+
       {isAdmin && (
         <form className="device-form pro-card" onSubmit={saveDevice}>
           {needsEmployee && (
@@ -1049,7 +1119,6 @@ value: "Department",
               {renderTextInput("Description", "Description")}
               {renderTextInput("Vendor", "Vendor")}
               {renderTextInput("CurrentLocation", "Current Location")}
-              
             </>
           )}
 
@@ -1214,6 +1283,23 @@ value: "Department",
             <option>Retired</option>
             <option>Missing</option>
           </select>
+
+          <input
+            type="date"
+            value={ageAsOfDate}
+            onChange={(e) => setAgeAsOfDate(e.target.value)}
+            title="Calculate age as of this date"
+          />
+
+          {ageAsOfDate && (
+            <button
+              type="button"
+              className="btn-delete"
+              onClick={() => setAgeAsOfDate("")}
+            >
+              Today Age
+            </button>
+          )}
 
           <button type="button" onClick={exportExcel}>
             Download Excel

@@ -20,11 +20,140 @@ function CustomDevicePage() {
   const [editId, setEditId] = useState(null);
   const [search, setSearch] = useState("");
 
+  // Realtime age update
+  const [todayDate, setTodayDate] = useState(new Date());
+
+  // Custom date for checking age as of selected date
+  const [ageAsOfDate, setAgeAsOfDate] = useState("");
+
   const getHeaders = () => ({
     headers: {
       Authorization: `Bearer ${localStorage.getItem("token")}`,
     },
   });
+
+  /* =========================================
+     REALTIME AGE CALCULATION
+  ========================================= */
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTodayDate(new Date());
+    }, 60000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  const calculateAgeFromDate = (dateValue, customEndDate = "") => {
+    if (!dateValue) return "-";
+
+    const startDate = new Date(dateValue);
+    const endDate = customEndDate ? new Date(customEndDate) : new Date(todayDate);
+
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return "-";
+
+    startDate.setHours(0, 0, 0, 0);
+    endDate.setHours(0, 0, 0, 0);
+
+    if (startDate > endDate) return "0 Years 0 Months 0 Days";
+
+    let years = endDate.getFullYear() - startDate.getFullYear();
+    let months = endDate.getMonth() - startDate.getMonth();
+    let days = endDate.getDate() - startDate.getDate();
+
+    if (days < 0) {
+      months--;
+
+      const previousMonth = new Date(
+        endDate.getFullYear(),
+        endDate.getMonth(),
+        0
+      );
+
+      days += previousMonth.getDate();
+    }
+
+    if (months < 0) {
+      years--;
+      months += 12;
+    }
+
+    if (years < 0) return "0 Years 0 Months 0 Days";
+
+    return `${years} Year${years !== 1 ? "s" : ""} ${months} Month${
+      months !== 1 ? "s" : ""
+    } ${days} Day${days !== 1 ? "s" : ""}`;
+  };
+
+  const normalizeFieldText = (value) => {
+    return String(value || "")
+      .replaceAll("_", " ")
+      .replaceAll("-", " ")
+      .toLowerCase();
+  };
+
+  const getDateFields = () => {
+    if (!selectedTemplate?.fields) return [];
+
+    return selectedTemplate.fields.filter((field) => field.type === "date");
+  };
+
+  const getPreferredAgeDateField = () => {
+    const dateFields = getDateFields();
+
+    if (dateFields.length === 0) return null;
+
+    const priorityKeywords = [
+      "purchase",
+      "buy",
+      "bought",
+      "handover",
+      "issued",
+      "assign",
+      "assigned",
+      "install",
+      "installed",
+      "warranty",
+      "created",
+      "date",
+    ];
+
+    const preferredField = dateFields.find((field) => {
+      const fieldText = normalizeFieldText(`${field.label} ${field.name}`);
+
+      return priorityKeywords.some((keyword) => fieldText.includes(keyword));
+    });
+
+    return preferredField || dateFields[0];
+  };
+
+  const getCustomAge = (device) => {
+    const ageDateField = getPreferredAgeDateField();
+
+    if (!ageDateField) return "-";
+
+    const dateValue = device.data?.[ageDateField.name];
+
+    return calculateAgeFromDate(dateValue, ageAsOfDate);
+  };
+
+  const shouldShowAgeColumn = () => {
+    return getDateFields().length > 0;
+  };
+
+  const formatDateValue = (value) => {
+    if (!value) return "-";
+
+    const date = new Date(value);
+
+    if (isNaN(date.getTime())) return value;
+
+    return date.toISOString().slice(0, 10);
+  };
+
+  /* =========================================
+     LOAD DATA
+  ========================================= */
 
   const loadTemplates = async () => {
     try {
@@ -87,9 +216,14 @@ function CustomDevicePage() {
     setStatus("Available");
     setEditId(null);
     setSearch("");
+    setAgeAsOfDate("");
 
     await loadDevices(id);
   };
+
+  /* =========================================
+     FORM HANDLERS
+  ========================================= */
 
   const handleChange = (name, value) => {
     setFormData((prev) => ({
@@ -216,6 +350,8 @@ function CustomDevicePage() {
       setDevices([]);
       setFormData({});
       setSearch("");
+      setAgeAsOfDate("");
+
       await loadTemplates();
     } catch (err) {
       console.error(
@@ -226,18 +362,27 @@ function CustomDevicePage() {
     }
   };
 
+  /* =========================================
+     SEARCH + EXPORT
+  ========================================= */
+
   const filteredDevices = useMemo(() => {
     const keyword = search.trim().toLowerCase();
 
     if (!keyword) return devices;
 
     return devices.filter((device) =>
-      [device.templateName, device.status, ...Object.values(device.data || {})]
+      [
+        device.templateName,
+        device.status,
+        getCustomAge(device),
+        ...Object.values(device.data || {}),
+      ]
         .join(" ")
         .toLowerCase()
         .includes(keyword)
     );
-  }, [search, devices]);
+  }, [search, devices, todayDate, selectedTemplate, ageAsOfDate]);
 
   const downloadExcel = () => {
     if (!isAdmin) {
@@ -250,6 +395,8 @@ function CustomDevicePage() {
       return;
     }
 
+    const showAge = shouldShowAgeColumn();
+
     const exportData = filteredDevices.map((device, index) => {
       const row = {
         No: index + 1,
@@ -257,10 +404,18 @@ function CustomDevicePage() {
       };
 
       selectedTemplate.fields.forEach((field) => {
-        row[field.label] = device.data?.[field.name] || "";
+        const value = device.data?.[field.name] || "";
+
+        row[field.label] =
+          field.type === "date" ? formatDateValue(value) : value;
       });
 
+      if (showAge) {
+        row.Age = getCustomAge(device);
+      }
+
       row.Status = device.status || "";
+
       row.CreatedAt = device.createdAt
         ? new Date(device.createdAt).toLocaleString()
         : "";
@@ -279,6 +434,10 @@ function CustomDevicePage() {
     XLSX.utils.book_append_sheet(workbook, worksheet, selectedTemplate.name);
     XLSX.writeFile(workbook, `${selectedTemplate.name}_Data.xlsx`);
   };
+
+  /* =========================================
+     RENDER FIELDS
+  ========================================= */
 
   const renderField = (field) => {
     if (field.type === "textarea") {
@@ -399,6 +558,25 @@ function CustomDevicePage() {
               onChange={(e) => setSearch(e.target.value)}
             />
 
+            {shouldShowAgeColumn() && (
+              <input
+                type="date"
+                value={ageAsOfDate}
+                onChange={(e) => setAgeAsOfDate(e.target.value)}
+                title="Calculate age as of this date"
+              />
+            )}
+
+            {shouldShowAgeColumn() && ageAsOfDate && (
+              <button
+                type="button"
+                className="btn-delete"
+                onClick={() => setAgeAsOfDate("")}
+              >
+                Today Age
+              </button>
+            )}
+
             {isAdmin && (
               <button type="button" onClick={downloadExcel}>
                 Download Excel
@@ -421,6 +599,12 @@ function CustomDevicePage() {
                   <th key={field.name}>{field.label}</th>
                 ))}
 
+                {shouldShowAgeColumn() && (
+                  <th>
+                    {ageAsOfDate ? `Age as of ${ageAsOfDate}` : "Age"}
+                  </th>
+                )}
+
                 <th>Status</th>
 
                 {isAdmin && <th>Action</th>}
@@ -432,11 +616,19 @@ function CustomDevicePage() {
                 <tr key={device._id}>
                   <td>{index + 1}</td>
 
-                  {selectedTemplate.fields.map((field) => (
-                    <td key={field.name}>
-                      {device.data?.[field.name] || "-"}
-                    </td>
-                  ))}
+                  {selectedTemplate.fields.map((field) => {
+                    const value = device.data?.[field.name];
+
+                    return (
+                      <td key={field.name}>
+                        {field.type === "date"
+                          ? formatDateValue(value)
+                          : value || "-"}
+                      </td>
+                    );
+                  })}
+
+                  {shouldShowAgeColumn() && <td>{getCustomAge(device)}</td>}
 
                   <td>
                     <span
@@ -474,7 +666,9 @@ function CustomDevicePage() {
                 <tr>
                   <td
                     colSpan={
-                      selectedTemplate.fields.length + (isAdmin ? 3 : 2)
+                      selectedTemplate.fields.length +
+                      (shouldShowAgeColumn() ? 1 : 0) +
+                      (isAdmin ? 3 : 2)
                     }
                   >
                     No data available
