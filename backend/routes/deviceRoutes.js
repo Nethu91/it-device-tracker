@@ -5,17 +5,41 @@ const Device = require("../models/Device");
 const { protect, adminOnly } = require("../middleware/authMiddleware");
 
 /* =====================================================
-   🟢 EXISTING ROUTES (KEEP YOUR CRUD AS-IS)
-   👉 DO NOT REMOVE YOUR OLD ROUTES
+   🟢 GET ALL DEVICES (ROLE BASED FIX - NEW)
 ===================================================== */
+router.get("/", protect, async (req, res) => {
+  try {
+    const user = req.user;
 
+    let query = { isDisposed: false };
 
+    // ADMIN → sees all devices
+    if (user.role === "admin") {
+      query = { isDisposed: false };
+    }
 
+    // USER → only assigned devices
+    else {
+      query = {
+        isDisposed: false,
+        EPFNumber: user.epfNumber || user.id,
+      };
+    }
+
+    const devices = await Device.find(query).sort({ createdAt: -1 });
+
+    res.json(devices);
+  } catch (error) {
+    console.error("Fetch devices error:", error);
+    res.status(500).json({
+      message: "Failed to fetch devices",
+      error: error.message,
+    });
+  }
+});
 
 /* =====================================================
    🔥 DISPOSE DEVICE (ENTERPRISE FIXED VERSION)
-   - AssetCode support ready
-   - Safe validation
 ===================================================== */
 router.post("/dispose/:id", protect, adminOnly, async (req, res) => {
   try {
@@ -29,42 +53,36 @@ router.post("/dispose/:id", protect, adminOnly, async (req, res) => {
       });
     }
 
-    // prevent double disposal
     if (device.isDisposed) {
       return res.status(400).json({
         message: "Device already disposed",
       });
     }
 
-    // update disposal fields ONLY
     device.isDisposed = true;
     device.disposedAt = new Date();
-    device.disposalReason =
-      reason || "5 Year Lifecycle Completed";
-
+    device.disposalReason = reason || "5 Year Lifecycle Completed";
     device.expiryStatus = "EXPIRED_5Y";
     device.Status = "Retired";
 
     await device.save();
 
-    return res.json({
+    res.json({
       message: "Device disposed successfully",
       success: true,
       device,
     });
   } catch (error) {
     console.error("Dispose error:", error);
-    return res.status(500).json({
+    res.status(500).json({
       message: "Dispose failed",
       error: error.message,
     });
   }
 });
 
-
-
 /* =====================================================
-   🔥 GET DISPOSED DEVICES
+   🔥 GET DISPOSED DEVICES (ADMIN ONLY)
 ===================================================== */
 router.get("/disposed", protect, adminOnly, async (req, res) => {
   try {
@@ -72,22 +90,52 @@ router.get("/disposed", protect, adminOnly, async (req, res) => {
       isDisposed: true,
     }).sort({ disposedAt: -1 });
 
-    return res.json(devices);
+    res.json(devices);
   } catch (error) {
     console.error("Fetch disposed error:", error);
-    return res.status(500).json({
+    res.status(500).json({
       message: "Failed to fetch disposed devices",
       error: error.message,
     });
   }
 });
 
+/* =====================================================
+   🔥 RESTORE DEVICE (OPTIONAL FEATURE)
+===================================================== */
+router.post("/restore/:id", protect, adminOnly, async (req, res) => {
+  try {
+    const device = await Device.findById(req.params.id);
 
+    if (!device) {
+      return res.status(404).json({
+        message: "Device not found",
+      });
+    }
+
+    device.isDisposed = false;
+    device.disposedAt = null;
+    device.disposalReason = "";
+    device.expiryStatus = "ACTIVE";
+    device.Status = "Available";
+
+    await device.save();
+
+    res.json({
+      message: "Device restored successfully",
+      success: true,
+    });
+  } catch (error) {
+    console.error("Restore error:", error);
+    res.status(500).json({
+      message: "Restore failed",
+      error: error.message,
+    });
+  }
+});
 
 /* =====================================================
-   🔥 LIFECYCLE CHECK (SAFE CRON SUPPORT)
-   - marks NEAR_EXPIRY / EXPIRED_5Y
-   - avoids heavy loops crash
+   🔥 LIFECYCLE CHECK (CRON SUPPORT SAFE)
 ===================================================== */
 router.post("/check-expiry", protect, adminOnly, async (req, res) => {
   try {
@@ -96,7 +144,6 @@ router.post("/check-expiry", protect, adminOnly, async (req, res) => {
     });
 
     const now = new Date();
-
     let updated = 0;
 
     for (const d of devices) {
@@ -117,54 +164,17 @@ router.post("/check-expiry", protect, adminOnly, async (req, res) => {
       await d.save();
     }
 
-    return res.json({
+    res.json({
       message: "Expiry check completed",
       updated,
     });
   } catch (error) {
     console.error("Expiry check failed:", error);
-    return res.status(500).json({
+    res.status(500).json({
       message: "Expiry check failed",
       error: error.message,
     });
   }
 });
-
-
-
-/* =====================================================
-   🆕 RESTORE DEVICE (OPTIONAL BUT ENTERPRISE USEFUL)
-===================================================== */
-router.post("/restore/:id", protect, adminOnly, async (req, res) => {
-  try {
-    const device = await Device.findById(req.params.id);
-
-    if (!device) {
-      return res.status(404).json({
-        message: "Device not found",
-      });
-    }
-
-    device.isDisposed = false;
-    device.disposedAt = null;
-    device.disposalReason = "";
-    device.expiryStatus = "ACTIVE";
-    device.Status = "Available";
-
-    await device.save();
-
-    return res.json({
-      message: "Device restored successfully",
-      success: true,
-    });
-  } catch (error) {
-    return res.status(500).json({
-      message: "Restore failed",
-      error: error.message,
-    });
-  }
-});
-
-
 
 module.exports = router;

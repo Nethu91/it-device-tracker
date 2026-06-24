@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 
+const user = JSON.parse(localStorage.getItem("user"));
+const isAdmin = user?.role === "admin";
 const BASE_API =
   window.location.hostname === "localhost"
     ? "http://localhost:5000/api"
@@ -9,6 +11,7 @@ const BASE_API =
 const DEVICE_API = `${BASE_API}/devices`;
 const EMPLOYEE_API = `${BASE_API}/employees`;
 const CUSTOM_DEVICE_API = `${BASE_API}/custom-devices`;
+
 
 function Dashboard() {
   const [devices, setDevices] = useState([]);
@@ -43,7 +46,10 @@ function Dashboard() {
         })),
       ]);
 
-      const deviceData = normalizeArray(deviceRes.data, "devices");
+      let deviceData = normalizeArray(deviceRes.data, "devices");
+
+// 👇 USER FILTER (extra safety layer)
+
       const employeeData = normalizeArray(empRes.data, "employees");
       const customDeviceData = normalizeArray(customRes.data, "customDevices");
 
@@ -91,6 +97,64 @@ function Dashboard() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // 👇 ADMIN-ONLY ACTIONS: Dispose / Restore
+  // NOTE: This assumes a PATCH endpoint exists for both normal devices
+  // (PATCH /api/devices/:id) and custom devices (PATCH /api/custom-devices/:id)
+  // that accepts a partial body to update the status field.
+  // If your backend route uses a different method (PUT) or a different
+  // field/value for "disposed", adjust the calls below accordingly.
+  const disposeDevice = async (id, type) => {
+    if (!isAdmin) return;
+    if (!window.confirm("Are you sure you want to dispose this device?")) return;
+
+    try {
+      if (type === "custom") {
+        await axios.patch(
+          `${CUSTOM_DEVICE_API}/${id}`,
+          { status: "Disposed" },
+          getAuthHeaders()
+        );
+      } else {
+        await axios.patch(
+          `${DEVICE_API}/${id}`,
+          { Status: "Disposed" },
+          getAuthHeaders()
+        );
+      }
+
+      await loadDashboardData();
+    } catch (err) {
+      console.error("Dispose error:", err.response?.data || err.message);
+      alert("Failed to dispose device. Please try again.");
+    }
+  };
+
+  const restoreDevice = async (id, type) => {
+    if (!isAdmin) return;
+    if (!window.confirm("Restore this device to Available status?")) return;
+
+    try {
+      if (type === "custom") {
+        await axios.patch(
+          `${CUSTOM_DEVICE_API}/${id}`,
+          { status: "Available" },
+          getAuthHeaders()
+        );
+      } else {
+        await axios.patch(
+          `${DEVICE_API}/${id}`,
+          { Status: "Available" },
+          getAuthHeaders()
+        );
+      }
+
+      await loadDashboardData();
+    } catch (err) {
+      console.error("Restore error:", err.response?.data || err.message);
+      alert("Failed to restore device. Please try again.");
+    }
+  };
 
   const totalDeviceCount = devices.length + customDevices.length;
 
@@ -249,7 +313,13 @@ function Dashboard() {
     },
   ];
 
+  // 👇 Helper: get current status regardless of normal/custom device shape
+  const getResultStatus = (result) =>
+    result.type === "custom" ? result.item.status : result.item.Status;
+
   const renderResultRow = (result) => {
+    const status = getResultStatus(result);
+
     if (result.type === "custom") {
       const d = result.item;
       const dataValues = Object.values(d.data || {}).join(" | ");
@@ -269,6 +339,28 @@ function Dashboard() {
           <td>-</td>
           <td>-</td>
           <td>{d.status || "-"}</td>
+          {/* 👇 ADMIN-ONLY ACTIONS COLUMN */}
+          {isAdmin && (
+            <td>
+              {status === "Disposed" ? (
+                <button
+                  type="button"
+                  className="restore-btn"
+                  onClick={() => restoreDevice(d._id, "custom")}
+                >
+                  Restore
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="dispose-btn"
+                  onClick={() => disposeDevice(d._id, "custom")}
+                >
+                  Dispose
+                </button>
+              )}
+            </td>
+          )}
         </tr>
       );
     }
@@ -290,6 +382,28 @@ function Dashboard() {
         <td>{d.SIMNumber || d.PortableTrackingSIMNumber || "-"}</td>
         <td>{d.PONumber || "-"}</td>
         <td>{d.Status || "-"}</td>
+        {/* 👇 ADMIN-ONLY ACTIONS COLUMN */}
+        {isAdmin && (
+          <td>
+            {status === "Disposed" ? (
+              <button
+                type="button"
+                className="restore-btn"
+                onClick={() => restoreDevice(d._id, "normal")}
+              >
+                Restore
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="dispose-btn"
+                onClick={() => disposeDevice(d._id, "normal")}
+              >
+                Dispose
+              </button>
+            )}
+          </td>
+        )}
       </tr>
     );
   };
@@ -425,6 +539,8 @@ function Dashboard() {
                 <th>SIM</th>
                 <th>PO</th>
                 <th>Status</th>
+                {/* 👇 ADMIN-ONLY ACTIONS HEADER */}
+                {isAdmin && <th>Actions</th>}
               </tr>
             </thead>
 

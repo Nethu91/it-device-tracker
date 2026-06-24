@@ -324,8 +324,15 @@ function DevicePage({ title, deviceType }) {
 
   const loadDevices = async () => {
     try {
-      const res = await axios.get(`${DEVICE_API}/type/${deviceType}`);
-      setDevices(res.data || []);
+      const res = await axios.get(`${DEVICE_API}`, getHeaders());
+
+      const all = res.data || [];
+
+      const filtered = all.filter(
+        (d) => d.DeviceType === deviceType
+      );
+
+      setDevices(filtered);
     } catch (err) {
       console.error("Load devices error:", err.response?.data || err.message);
       setDevices([]);
