@@ -14,19 +14,9 @@ function Dashboard() {
   const [devices, setDevices] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [customDevices, setCustomDevices] = useState([]);
-
   const [search, setSearch] = useState("");
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
-
-  /* =========================
-     🔥 NEW: LIFECYCLE STATE
-  ========================= */
-  const [lifecycle, setLifecycle] = useState({
-    near: 0,
-    urgent: 0,
-    disposed: 0,
-  });
 
   const getAuthHeaders = () => ({
     headers: {
@@ -41,9 +31,6 @@ function Dashboard() {
     return [];
   };
 
-  /* =========================
-     LOAD DASHBOARD DATA
-  ========================= */
   const loadDashboardData = async () => {
     try {
       setLoading(true);
@@ -56,42 +43,53 @@ function Dashboard() {
         })),
       ]);
 
-      setDevices(normalizeArray(deviceRes.data, "devices"));
-      setEmployees(normalizeArray(empRes.data, "employees"));
-      setCustomDevices(normalizeArray(customRes.data, "customDevices"));
+      const deviceData = normalizeArray(deviceRes.data, "devices");
+      const employeeData = normalizeArray(empRes.data, "employees");
+      const customDeviceData = normalizeArray(customRes.data, "customDevices");
+
+      setDevices(deviceData);
+      setEmployees(employeeData);
+      setCustomDevices(customDeviceData);
+
+      console.log("DASHBOARD DEVICES:", deviceData);
+      console.log("DASHBOARD EMPLOYEES:", employeeData);
+      console.log("DASHBOARD CUSTOM DEVICES:", customDeviceData);
     } catch (err) {
-      console.error("Dashboard error:", err.message);
+      console.error("Dashboard load error:", err.response?.data || err.message);
+      setDevices([]);
+      setEmployees([]);
+      setCustomDevices([]);
     } finally {
       setLoading(false);
     }
   };
 
-  /* =========================
-     🔥 NEW: LIFECYCLE API
-  ========================= */
-  const loadLifecycle = async () => {
-    try {
-      const res = await axios.get(
-        `${DEVICE_API}/dashboard/overview`,
-        getAuthHeaders()
-      );
-
-      setLifecycle(res.data || { near: 0, urgent: 0, disposed: 0 });
-    } catch (err) {
-      console.error("Lifecycle error:", err.message);
-    }
-  };
-
   useEffect(() => {
     loadDashboardData();
-    loadLifecycle();
+
+    const handleFocus = () => {
+      loadDashboardData();
+    };
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        loadDashboardData();
+      }
+    };
+
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     const interval = setInterval(() => {
       loadDashboardData();
-      loadLifecycle();
     }, 10000);
 
-    return () => clearInterval(interval);
+    return () => {
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      clearInterval(interval);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const totalDeviceCount = devices.length + customDevices.length;
@@ -107,13 +105,14 @@ function Dashboard() {
       .toLowerCase()
       .replaceAll("-", " ")
       .replaceAll("_", " ")
+      .replace(/\s+/g, " ")
       .trim();
 
   const countByType = (...types) => {
-    const normalized = types.map(normalizeType);
+    const normalizedTypes = types.map(normalizeType);
 
     return devices.filter((d) =>
-      normalized.includes(normalizeType(d.DeviceType))
+      normalizedTypes.includes(normalizeType(d.DeviceType))
     ).length;
   };
 
@@ -123,23 +122,48 @@ function Dashboard() {
       d.EmployeeName,
       d.EPFNumber,
       d.Department,
+      d.Designation,
       d.DeviceName,
       d.Model,
       d.SerialNumber,
       d.AssetCode,
       d.Location,
       d.IPAddress,
+      d.SIMNumber,
+      d.PONumber,
+      d.Vendor,
+      d.InvoiceNumber,
+      d.CurrentUser,
+      d.TonerModel,
+      d.ExactLocation,
+      d.ITReferenceNumber,
+      d.CurrentLocation,
+      d.ProjectorVendor,
+      d.AccessPointBrand,
+      d.AccessPointModel,
+      d.WirelessVendor,
+      d.WirelessUsername,
+      d.PowerAppSID,
+      d.NewIPAfterVLAN,
+      d.PortableTracking,
+      d.PortableTrackingNumber,
+      d.PortableTrackingSIMNumber,
     ]
       .join(" ")
       .toLowerCase();
 
   const customSearchText = (d) =>
-    [d.templateName, d.status, ...Object.values(d.data || {})]
+    [
+      d.templateName,
+      d.status,
+      ...Object.values(d.data || {}),
+    ]
       .join(" ")
       .toLowerCase();
 
   const suggestions = useMemo(() => {
     const keyword = search.trim().toLowerCase();
+
     if (!keyword) return [];
 
     const normalSuggestions = devices
@@ -155,7 +179,11 @@ function Dashboard() {
 
   const handleSearch = () => {
     const keyword = search.trim().toLowerCase();
-    if (!keyword) return setResults([]);
+
+    if (!keyword) {
+      setResults([]);
+      return;
+    }
 
     const normalResults = devices
       .filter((d) => searchText(d).includes(keyword))
@@ -168,9 +196,26 @@ function Dashboard() {
     setResults([...normalResults, ...customResults]);
   };
 
-  /* =========================
-     SUMMARY CARDS (UNCHANGED + SAFE ADD)
-  ========================= */
+  const selectSuggestion = (result) => {
+    if (result.type === "normal") {
+      const device = result.item;
+
+      setSearch(
+        `${device.DeviceType || ""} ${device.EmployeeName || ""} ${
+          device.AssetCode || ""
+        } ${device.SerialNumber || ""}`.trim()
+      );
+
+      setResults([result]);
+      return;
+    }
+
+    const customDevice = result.item;
+
+    setSearch(`${customDevice.templateName || ""} ${customDevice.status || ""}`);
+    setResults([result]);
+  };
+
   const summaryCards = [
     { title: "Employees", value: employees.length },
     { title: "Desktops", value: countByType("Desktop", "Desktops") },
@@ -180,75 +225,216 @@ function Dashboard() {
     { title: "Printers", value: countByType("Printer", "Printers") },
     { title: "Switches", value: countByType("Switch", "Switches") },
     { title: "Servers", value: countByType("Server", "Servers") },
+    { title: "Projectors", value: countByType("Projector", "Projectors") },
+    {
+      title: "Wireless AP",
+      value: countByType("Wireless AP", "Wireless_AP", "WirelessAP"),
+    },
     { title: "UPS", value: countByType("UPS") },
-    { title: "Custom Devices", value: customDevices.length },
+    {
+      title: "Smart Boards",
+      value: countByType("Smart Board", "Smart Boards"),
+    },
+    {
+      title: "Portable Trackers",
+      value: countByType("Portable Tracker", "Portable Trackers"),
+    },
+    {
+      title: "Fingerprint Machines",
+      value: countByType("Fingerprint Machine", "Fingerprint Machines"),
+    },
+    {
+      title: "Custom Devices",
+      value: customDevices.length,
+    },
   ];
+
+  const renderResultRow = (result) => {
+    if (result.type === "custom") {
+      const d = result.item;
+      const dataValues = Object.values(d.data || {}).join(" | ");
+
+      return (
+        <tr key={d._id}>
+          <td>{d.templateName || "Custom Device"}</td>
+          <td>-</td>
+          <td>-</td>
+          <td>-</td>
+          <td>{dataValues || "-"}</td>
+          <td>-</td>
+          <td>-</td>
+          <td>-</td>
+          <td>-</td>
+          <td>-</td>
+          <td>-</td>
+          <td>-</td>
+          <td>{d.status || "-"}</td>
+        </tr>
+      );
+    }
+
+    const d = result.item;
+
+    return (
+      <tr key={d._id}>
+        <td>{d.DeviceType || "-"}</td>
+        <td>{d.EmployeeName || "-"}</td>
+        <td>{d.EPFNumber || "-"}</td>
+        <td>{d.Department || "-"}</td>
+        <td>{d.DeviceName || "-"}</td>
+        <td>{d.Model || d.AccessPointModel || d.ServerModel || "-"}</td>
+        <td>{d.SerialNumber || "-"}</td>
+        <td>{d.AssetCode || "-"}</td>
+        <td>{d.Location || d.CurrentLocation || d.ExactLocation || "-"}</td>
+        <td>{d.IPAddress || d.NewIPAfterVLAN || "-"}</td>
+        <td>{d.SIMNumber || d.PortableTrackingSIMNumber || "-"}</td>
+        <td>{d.PONumber || "-"}</td>
+        <td>{d.Status || "-"}</td>
+      </tr>
+    );
+  };
 
   return (
     <div className="page">
       <div className="page-header">
         <h1>IT Device Tracker Dashboard</h1>
-        <span>
-          {loading ? "Loading..." : `${totalDeviceCount} Devices`}
+        <span className="device-count">
+          {loading ? "Loading..." : `${totalDeviceCount} Total Devices`}
         </span>
       </div>
 
-      {/* MAIN STATS */}
       <div className="dashboard-grid">
         <div className="dashboard-card">
-          Total: {totalDeviceCount}
+          <h3>Total Devices</h3>
+          <h1>{totalDeviceCount}</h1>
         </div>
+
         <div className="dashboard-card green">
-          Available: {countByStatus("Available")}
+          <h3>Available</h3>
+          <h1>{countByStatus("Available")}</h1>
         </div>
+
         <div className="dashboard-card blue">
-          Assigned: {countByStatus("Assigned")}
+          <h3>Assigned</h3>
+          <h1>{countByStatus("Assigned")}</h1>
         </div>
-        <div className="dashboard-card red">
-          Missing: {countByStatus("Missing")}
-        </div>
-      </div>
 
-      {/* 🔥 NEW LIFECYCLE SECTION */}
-      <div className="dashboard-grid">
-        <div className="dashboard-card yellow">
-          Near Expiry: {lifecycle.near}
-        </div>
         <div className="dashboard-card orange">
-          Urgent: {lifecycle.urgent}
+          <h3>In Repair</h3>
+          <h1>{countByStatus("In Repair")}</h1>
         </div>
-        <div className="dashboard-card gray">
-          Disposed: {lifecycle.disposed}
+
+        <div className="dashboard-card red">
+          <h3>Missing</h3>
+          <h1>{countByStatus("Missing")}</h1>
         </div>
       </div>
 
-      {/* SEARCH */}
       <div className="search-card">
-        <input
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setResults([]);
-          }}
-          placeholder="Search devices..."
-        />
-        <button onClick={handleSearch}>Search</button>
+        <h2>Search Devices</h2>
+
+        <div className="search-wrapper">
+          <div className="search-box">
+            <input
+              type="text"
+              placeholder="Search by EPF, Employee Name, Serial Number, Asset Code, PO Number, Custom Device"
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setResults([]);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleSearch();
+              }}
+            />
+
+            <button type="button" onClick={handleSearch}>
+              Search
+            </button>
+          </div>
+
+          {search && suggestions.length > 0 && results.length === 0 && (
+            <div className="search-dropdown">
+              {suggestions.map((result) => {
+                const d = result.item;
+
+                return (
+                  <div
+                    className="search-item"
+                    key={d._id}
+                    onClick={() => selectSuggestion(result)}
+                  >
+                    {result.type === "custom" ? (
+                      <>
+                        <strong>{d.templateName}</strong> | Custom Device |{" "}
+                        {d.status || "No Status"}
+                      </>
+                    ) : (
+                      <>
+                        <strong>{d.DeviceType}</strong> |{" "}
+                        {d.EmployeeName || "No User"} |{" "}
+                        {d.AssetCode || "No Asset"} |{" "}
+                        {d.SerialNumber || "No Serial"}
+                      </>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* RESULTS */}
+      <div className="summary-section">
+        <div className="section-title-row">
+          <h2>Inventory Summary</h2>
+          <span>Live updated device category overview</span>
+        </div>
+
+        <div className="summary-grid">
+          {summaryCards.map((card) => (
+            <div className="summary-card-pro" key={card.title}>
+              <div className="summary-icon">📦</div>
+
+              <div>
+                <p>{card.title}</p>
+                <h2>{card.value}</h2>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {results.length > 0 && (
-        <table className="device-table">
-          <tbody>
-            {results.map((r, i) => (
-              <tr key={i}>
-                <td>{r.type}</td>
-                <td>{r.item.DeviceType || r.item.templateName}</td>
-                <td>{r.item.EmployeeName || "-"}</td>
-                <td>{r.item.Status || r.item.status || "-"}</td>
+        <div className="table-card">
+          <h2>Search Results</h2>
+
+          <table className="device-table">
+            <thead>
+              <tr>
+                <th>Type</th>
+                <th>Employee</th>
+                <th>EPF</th>
+                <th>Department</th>
+                <th>Device / Data</th>
+                <th>Model</th>
+                <th>Serial</th>
+                <th>Asset</th>
+                <th>Location</th>
+                <th>IP</th>
+                <th>SIM</th>
+                <th>PO</th>
+                <th>Status</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+
+            <tbody>{results.map((result) => renderResultRow(result))}</tbody>
+          </table>
+        </div>
+      )}
+
+      {search && results.length === 0 && suggestions.length === 0 && (
+        <div className="table-card no-data">No matching devices found</div>
       )}
     </div>
   );

@@ -244,6 +244,10 @@ router.post("/login", async (req, res) => {
 
     const token = createAdminToken(user);
 
+    user.lastLogin = new Date();
+user.loginCount = (user.loginCount || 0) + 1;
+await user.save();
+
     res.json({
       message: "Admin login successful",
       token,
@@ -332,6 +336,10 @@ router.post("/microsoft-login", async (req, res) => {
 
     console.log("MICROSOFT EMPLOYEE APPROVED:", normalizedEmail);
 
+    employee.lastLogin = new Date();
+employee.loginCount = (employee.loginCount || 0) + 1;
+await employee.save();
+
     const token = createEmployeeToken(employee);
 
     res.status(200).json({
@@ -356,6 +364,14 @@ router.post("/microsoft-login", async (req, res) => {
 
 router.get("/profile", protect, async (req, res) => {
   try {
+
+    // ✅ ADD THIS (OPTION 1 SAFETY CHECK)
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        message: "Unauthorized access",
+      });
+    }
+
     if (req.user.type === "employee" || req.user.authProvider === "microsoft") {
       const employee = await Employee.findById(req.user.id);
 

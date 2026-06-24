@@ -4,16 +4,19 @@ const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
 const path = require("path");
-
 const cron = require("node-cron");
-
-// Jobs (NEW)
-const runDeviceNotifications = require("./jobs/deviceNotificationJob");
 
 const app = express();
 
 /* ================================
-   Middleware
+   JOB IMPORT (FIXED)
+================================ */
+
+// ✅ FIXED: correct file name
+const runDeviceNotifications = require("./jobs/deviceExpiryJob");
+
+/* ================================
+   MIDDLEWARE
 ================================ */
 
 app.use(
@@ -29,11 +32,10 @@ app.use(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Static uploads folder
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 /* ================================
-   MongoDB Connection
+   DATABASE CONNECTION
 ================================ */
 
 mongoose
@@ -61,21 +63,32 @@ app.get("/", (req, res) => {
 });
 
 /* ================================
-   DEVICE LIFECYCLE JOB (NEW)
-   Runs every day at 12:00 AM
+   SAFE JOB WRAPPER
 ================================ */
 
-cron.schedule("0 0 * * *", async () => {
+const runJobSafely = async () => {
   try {
-    console.log("Running device lifecycle notification job...");
-
+    console.log("🔄 Running device lifecycle job...");
     await runDeviceNotifications();
-
-    console.log("Device lifecycle job completed");
+    console.log("✅ Device lifecycle job completed");
   } catch (err) {
-    console.error("Lifecycle job error:", err.message);
+    console.error("❌ Lifecycle job failed:", err.message);
   }
+};
+
+/* ================================
+   CRON JOB (DAILY 12AM)
+================================ */
+
+cron.schedule("0 0 * * *", runJobSafely, {
+  timezone: "Asia/Colombo",
 });
+
+/* ================================
+   RUN ON SERVER START (TEST)
+================================ */
+
+runJobSafely();
 
 /* ================================
    404 HANDLER
@@ -95,5 +108,5 @@ app.use((req, res) => {
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
 });
