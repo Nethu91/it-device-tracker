@@ -1,30 +1,28 @@
 import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 
-const user = JSON.parse(localStorage.getItem("user"));
-const isAdmin = user?.role === "admin";
 const BASE_API =
   window.location.hostname === "localhost"
     ? "http://localhost:5000/api"
     : "https://it-device-tracker.onrender.com/api";
 
-const DEVICE_API = `${BASE_API}/devices`;
-const EMPLOYEE_API = `${BASE_API}/employees`;
+const DEVICE_API      = `${BASE_API}/devices`;
+const EMPLOYEE_API    = `${BASE_API}/employees`;
 const CUSTOM_DEVICE_API = `${BASE_API}/custom-devices`;
 
-
 function Dashboard() {
-  const [devices, setDevices] = useState([]);
-  const [employees, setEmployees] = useState([]);
+  const storedUser = JSON.parse(localStorage.getItem("user") || "null");
+  const isAdmin    = String(storedUser?.role || "").toLowerCase() === "admin";
+
+  const [devices, setDevices]           = useState([]);
+  const [employees, setEmployees]       = useState([]);
   const [customDevices, setCustomDevices] = useState([]);
-  const [search, setSearch] = useState("");
-  const [results, setResults] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [search, setSearch]             = useState("");
+  const [results, setResults]           = useState([]);
+  const [loading, setLoading]           = useState(false);
 
   const getAuthHeaders = () => ({
-    headers: {
-      Authorization: `Bearer ${localStorage.getItem("token")}`,
-    },
+    headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
   });
 
   const normalizeArray = (data, key) => {
@@ -41,25 +39,27 @@ function Dashboard() {
       const [deviceRes, empRes, customRes] = await Promise.all([
         axios.get(DEVICE_API, getAuthHeaders()),
         axios.get(EMPLOYEE_API, getAuthHeaders()),
-        axios.get(CUSTOM_DEVICE_API, getAuthHeaders()).catch(() => ({
-          data: [],
-        })),
+        axios.get(CUSTOM_DEVICE_API, getAuthHeaders()).catch(() => ({ data: [] })),
       ]);
 
-      let deviceData = normalizeArray(deviceRes.data, "devices");
-
-// 👇 USER FILTER (extra safety layer)
-
-      const employeeData = normalizeArray(empRes.data, "employees");
+      const deviceData     = normalizeArray(deviceRes.data, "devices");
+      const employeeData   = normalizeArray(empRes.data, "employees");
       const customDeviceData = normalizeArray(customRes.data, "customDevices");
 
       setDevices(deviceData);
       setEmployees(employeeData);
-      setCustomDevices(customDeviceData);
 
-      console.log("DASHBOARD DEVICES:", deviceData);
-      console.log("DASHBOARD EMPLOYEES:", employeeData);
-      console.log("DASHBOARD CUSTOM DEVICES:", customDeviceData);
+      // ✅ User ට own custom devices පමණයි — Admin ට සියල්ල
+      if (isAdmin) {
+        setCustomDevices(customDeviceData);
+      } else {
+        const userId = storedUser?._id || storedUser?.id || "";
+        const ownCustom = customDeviceData.filter(
+          (d) => String(d.createdBy || "") === String(userId)
+        );
+        setCustomDevices(ownCustom);
+      }
+
     } catch (err) {
       console.error("Dashboard load error:", err.response?.data || err.message);
       setDevices([]);
@@ -73,22 +73,12 @@ function Dashboard() {
   useEffect(() => {
     loadDashboardData();
 
-    const handleFocus = () => {
-      loadDashboardData();
-    };
-
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        loadDashboardData();
-      }
-    };
+    const handleFocus = () => loadDashboardData();
+    const handleVisibilityChange = () => { if (!document.hidden) loadDashboardData(); };
 
     window.addEventListener("focus", handleFocus);
     document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    const interval = setInterval(() => {
-      loadDashboardData();
-    }, 10000);
+    const interval = setInterval(() => loadDashboardData(), 10000);
 
     return () => {
       window.removeEventListener("focus", handleFocus);
@@ -98,64 +88,7 @@ function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 👇 ADMIN-ONLY ACTIONS: Dispose / Restore
-  // NOTE: This assumes a PATCH endpoint exists for both normal devices
-  // (PATCH /api/devices/:id) and custom devices (PATCH /api/custom-devices/:id)
-  // that accepts a partial body to update the status field.
-  // If your backend route uses a different method (PUT) or a different
-  // field/value for "disposed", adjust the calls below accordingly.
-  const disposeDevice = async (id, type) => {
-    if (!isAdmin) return;
-    if (!window.confirm("Are you sure you want to dispose this device?")) return;
-
-    try {
-      if (type === "custom") {
-        await axios.patch(
-          `${CUSTOM_DEVICE_API}/${id}`,
-          { status: "Disposed" },
-          getAuthHeaders()
-        );
-      } else {
-        await axios.patch(
-          `${DEVICE_API}/${id}`,
-          { Status: "Disposed" },
-          getAuthHeaders()
-        );
-      }
-
-      await loadDashboardData();
-    } catch (err) {
-      console.error("Dispose error:", err.response?.data || err.message);
-      alert("Failed to dispose device. Please try again.");
-    }
-  };
-
-  const restoreDevice = async (id, type) => {
-    if (!isAdmin) return;
-    if (!window.confirm("Restore this device to Available status?")) return;
-
-    try {
-      if (type === "custom") {
-        await axios.patch(
-          `${CUSTOM_DEVICE_API}/${id}`,
-          { status: "Available" },
-          getAuthHeaders()
-        );
-      } else {
-        await axios.patch(
-          `${DEVICE_API}/${id}`,
-          { Status: "Available" },
-          getAuthHeaders()
-        );
-      }
-
-      await loadDashboardData();
-    } catch (err) {
-      console.error("Restore error:", err.response?.data || err.message);
-      alert("Failed to restore device. Please try again.");
-    }
-  };
-
+  /* ── Counts ── */
   const totalDeviceCount = devices.length + customDevices.length;
 
   const countByStatus = (status) => {
@@ -165,69 +98,32 @@ function Dashboard() {
   };
 
   const normalizeType = (value) =>
-    String(value || "")
-      .toLowerCase()
-      .replaceAll("-", " ")
-      .replaceAll("_", " ")
-      .replace(/\s+/g, " ")
-      .trim();
+    String(value || "").toLowerCase().replaceAll("-", " ").replaceAll("_", " ").replace(/\s+/g, " ").trim();
 
   const countByType = (...types) => {
     const normalizedTypes = types.map(normalizeType);
-
-    return devices.filter((d) =>
-      normalizedTypes.includes(normalizeType(d.DeviceType))
-    ).length;
+    return devices.filter((d) => normalizedTypes.includes(normalizeType(d.DeviceType))).length;
   };
 
+  /* ── Search text builders ── */
   const searchText = (d) =>
     [
-      d.DeviceType,
-      d.EmployeeName,
-      d.EPFNumber,
-      d.Department,
-      d.Designation,
-      d.DeviceName,
-      d.Model,
-      d.SerialNumber,
-      d.AssetCode,
-      d.Location,
-      d.IPAddress,
-      d.SIMNumber,
-      d.PONumber,
-      d.Vendor,
-      d.InvoiceNumber,
-      d.CurrentUser,
-      d.TonerModel,
-      d.ExactLocation,
-      d.ITReferenceNumber,
-      d.CurrentLocation,
-      d.ProjectorVendor,
-      d.AccessPointBrand,
-      d.AccessPointModel,
-      d.WirelessVendor,
-      d.WirelessUsername,
-      d.PowerAppSID,
-      d.NewIPAfterVLAN,
-      d.PortableTracking,
-      d.PortableTrackingNumber,
-      d.PortableTrackingSIMNumber,
-    ]
-      .join(" ")
-      .toLowerCase();
+      d.DeviceType, d.EmployeeName, d.EPFNumber, d.Department, d.Designation,
+      d.DeviceName, d.Model, d.SerialNumber, d.AssetCode, d.Location,
+      d.IPAddress, d.SIMNumber, d.PONumber, d.Vendor, d.InvoiceNumber,
+      d.CurrentUser, d.TonerModel, d.ExactLocation, d.ITReferenceNumber,
+      d.CurrentLocation, d.ProjectorVendor, d.AccessPointBrand,
+      d.AccessPointModel, d.WirelessVendor, d.WirelessUsername,
+      d.PowerAppSID, d.NewIPAfterVLAN, d.PortableTracking,
+      d.PortableTrackingNumber, d.PortableTrackingSIMNumber,
+    ].join(" ").toLowerCase();
 
   const customSearchText = (d) =>
-    [
-      d.templateName,
-      d.status,
-      ...Object.values(d.data || {}),
-    ]
-      .join(" ")
-      .toLowerCase();
+    [d.templateName, d.status, ...Object.values(d.data || {})].join(" ").toLowerCase();
 
+  /* ── Suggestions ── */
   const suggestions = useMemo(() => {
     const keyword = search.trim().toLowerCase();
-
     if (!keyword) return [];
 
     const normalSuggestions = devices
@@ -239,15 +135,12 @@ function Dashboard() {
       .map((d) => ({ type: "custom", item: d }));
 
     return [...normalSuggestions, ...customSuggestions].slice(0, 8);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search, devices, customDevices]);
 
   const handleSearch = () => {
     const keyword = search.trim().toLowerCase();
-
-    if (!keyword) {
-      setResults([]);
-      return;
-    }
+    if (!keyword) { setResults([]); return; }
 
     const normalResults = devices
       .filter((d) => searchText(d).includes(keyword))
@@ -262,111 +155,71 @@ function Dashboard() {
 
   const selectSuggestion = (result) => {
     if (result.type === "normal") {
-      const device = result.item;
-
-      setSearch(
-        `${device.DeviceType || ""} ${device.EmployeeName || ""} ${
-          device.AssetCode || ""
-        } ${device.SerialNumber || ""}`.trim()
-      );
-
-      setResults([result]);
-      return;
+      const d = result.item;
+      setSearch(`${d.DeviceType || ""} ${d.EmployeeName || ""} ${d.AssetCode || ""} ${d.SerialNumber || ""}`.trim());
+    } else {
+      const d = result.item;
+      setSearch(`${d.templateName || ""} ${d.status || ""}`);
     }
-
-    const customDevice = result.item;
-
-    setSearch(`${customDevice.templateName || ""} ${customDevice.status || ""}`);
     setResults([result]);
   };
 
-  const summaryCards = [
-    { title: "Employees", value: employees.length },
-    { title: "Desktops", value: countByType("Desktop", "Desktops") },
-    { title: "Laptops", value: countByType("Laptop", "Laptops") },
-    { title: "Tablets", value: countByType("Tablet", "Tablets") },
-    { title: "SIM", value: countByType("SIM", "Dongle", "Dongles") },
-    { title: "Printers", value: countByType("Printer", "Printers") },
-    { title: "Switches", value: countByType("Switch", "Switches") },
-    { title: "Servers", value: countByType("Server", "Servers") },
-    { title: "Projectors", value: countByType("Projector", "Projectors") },
-    {
-      title: "Wireless AP",
-      value: countByType("Wireless AP", "Wireless_AP", "WirelessAP"),
-    },
-    { title: "UPS", value: countByType("UPS") },
-    {
-      title: "Smart Boards",
-      value: countByType("Smart Board", "Smart Boards"),
-    },
-    {
-      title: "Portable Trackers",
-      value: countByType("Portable Tracker", "Portable Trackers"),
-    },
-    {
-      title: "Fingerprint Machines",
-      value: countByType("Fingerprint Machine", "Fingerprint Machines"),
-    },
-    {
-      title: "Custom Devices",
-      value: customDevices.length,
-    },
+  /* ── Summary cards — Admin vs User ── */
+  const adminSummaryCards = [
+    { title: "Employees",            value: employees.length },
+    { title: "Desktops",             value: countByType("Desktop", "Desktops") },
+    { title: "Laptops",              value: countByType("Laptop", "Laptops") },
+    { title: "Tablets",              value: countByType("Tablet", "Tablets") },
+    { title: "SIM",                  value: countByType("SIM", "Dongle", "Dongles") },
+    { title: "Printers",             value: countByType("Printer", "Printers") },
+    { title: "Switches",             value: countByType("Switch", "Switches") },
+    { title: "Servers",              value: countByType("Server", "Servers") },
+    { title: "Projectors",           value: countByType("Projector", "Projectors") },
+    { title: "Wireless AP",          value: countByType("Wireless AP", "Wireless_AP", "WirelessAP") },
+    { title: "UPS",                  value: countByType("UPS") },
+    { title: "Smart Boards",         value: countByType("Smart Board", "Smart Boards") },
+    { title: "Portable Trackers",    value: countByType("Portable Tracker", "Portable Trackers") },
+    { title: "Fingerprint Machines", value: countByType("Fingerprint Machine", "Fingerprint Machines") },
+    { title: "Custom Devices",       value: customDevices.length },
   ];
 
-  // 👇 Helper: get current status regardless of normal/custom device shape
-  const getResultStatus = (result) =>
-    result.type === "custom" ? result.item.status : result.item.Status;
+  // ✅ User ට same categories — own devices count පමණයි
+  const userSummaryCards = [
+    { title: "Desktops",             value: countByType("Desktop", "Desktops") },
+    { title: "Laptops",              value: countByType("Laptop", "Laptops") },
+    { title: "Tablets",              value: countByType("Tablet", "Tablets") },
+    { title: "SIM",                  value: countByType("SIM", "Dongle", "Dongles") },
+    { title: "Printers",             value: countByType("Printer", "Printers") },
+    { title: "Switches",             value: countByType("Switch", "Switches") },
+    { title: "Servers",              value: countByType("Server", "Servers") },
+    { title: "Projectors",           value: countByType("Projector", "Projectors") },
+    { title: "Wireless AP",          value: countByType("Wireless AP", "Wireless_AP", "WirelessAP") },
+    { title: "UPS",                  value: countByType("UPS") },
+    { title: "Smart Boards",         value: countByType("Smart Board", "Smart Boards") },
+    { title: "Portable Trackers",    value: countByType("Portable Tracker", "Portable Trackers") },
+    { title: "Fingerprint Machines", value: countByType("Fingerprint Machine", "Fingerprint Machines") },
+    { title: "Custom Devices",       value: customDevices.length },
+  ];
 
+  const summaryCards = isAdmin ? adminSummaryCards : userSummaryCards;
+
+  /* ── Search result row renderer ── */
   const renderResultRow = (result) => {
-    const status = getResultStatus(result);
-
     if (result.type === "custom") {
       const d = result.item;
       const dataValues = Object.values(d.data || {}).join(" | ");
-
       return (
         <tr key={d._id}>
           <td>{d.templateName || "Custom Device"}</td>
-          <td>-</td>
-          <td>-</td>
-          <td>-</td>
+          <td>-</td><td>-</td><td>-</td>
           <td>{dataValues || "-"}</td>
-          <td>-</td>
-          <td>-</td>
-          <td>-</td>
-          <td>-</td>
-          <td>-</td>
-          <td>-</td>
-          <td>-</td>
+          <td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td>
           <td>{d.status || "-"}</td>
-          {/* 👇 ADMIN-ONLY ACTIONS COLUMN */}
-          {isAdmin && (
-            <td>
-              {status === "Disposed" ? (
-                <button
-                  type="button"
-                  className="restore-btn"
-                  onClick={() => restoreDevice(d._id, "custom")}
-                >
-                  Restore
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="dispose-btn"
-                  onClick={() => disposeDevice(d._id, "custom")}
-                >
-                  Dispose
-                </button>
-              )}
-            </td>
-          )}
         </tr>
       );
     }
 
     const d = result.item;
-
     return (
       <tr key={d._id}>
         <td>{d.DeviceType || "-"}</td>
@@ -382,32 +235,11 @@ function Dashboard() {
         <td>{d.SIMNumber || d.PortableTrackingSIMNumber || "-"}</td>
         <td>{d.PONumber || "-"}</td>
         <td>{d.Status || "-"}</td>
-        {/* 👇 ADMIN-ONLY ACTIONS COLUMN */}
-        {isAdmin && (
-          <td>
-            {status === "Disposed" ? (
-              <button
-                type="button"
-                className="restore-btn"
-                onClick={() => restoreDevice(d._id, "normal")}
-              >
-                Restore
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="dispose-btn"
-                onClick={() => disposeDevice(d._id, "normal")}
-              >
-                Dispose
-              </button>
-            )}
-          </td>
-        )}
       </tr>
     );
   };
 
+  /* ── JSX ── */
   return (
     <div className="page">
       <div className="page-header">
@@ -417,79 +249,55 @@ function Dashboard() {
         </span>
       </div>
 
+      {/* ── Status cards ── */}
       <div className="dashboard-grid">
         <div className="dashboard-card">
           <h3>Total Devices</h3>
           <h1>{totalDeviceCount}</h1>
         </div>
-
         <div className="dashboard-card green">
           <h3>Available</h3>
           <h1>{countByStatus("Available")}</h1>
         </div>
-
         <div className="dashboard-card blue">
           <h3>Assigned</h3>
           <h1>{countByStatus("Assigned")}</h1>
         </div>
-
         <div className="dashboard-card orange">
           <h3>In Repair</h3>
           <h1>{countByStatus("In Repair")}</h1>
         </div>
-
         <div className="dashboard-card red">
           <h3>Missing</h3>
           <h1>{countByStatus("Missing")}</h1>
         </div>
       </div>
 
+      {/* ── Search ── */}
       <div className="search-card">
         <h2>Search Devices</h2>
-
         <div className="search-wrapper">
           <div className="search-box">
             <input
               type="text"
               placeholder="Search by EPF, Employee Name, Serial Number, Asset Code, PO Number, Custom Device"
               value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setResults([]);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleSearch();
-              }}
+              onChange={(e) => { setSearch(e.target.value); setResults([]); }}
+              onKeyDown={(e) => { if (e.key === "Enter") handleSearch(); }}
             />
-
-            <button type="button" onClick={handleSearch}>
-              Search
-            </button>
+            <button type="button" onClick={handleSearch}>Search</button>
           </div>
 
           {search && suggestions.length > 0 && results.length === 0 && (
             <div className="search-dropdown">
               {suggestions.map((result) => {
                 const d = result.item;
-
                 return (
-                  <div
-                    className="search-item"
-                    key={d._id}
-                    onClick={() => selectSuggestion(result)}
-                  >
+                  <div className="search-item" key={d._id} onClick={() => selectSuggestion(result)}>
                     {result.type === "custom" ? (
-                      <>
-                        <strong>{d.templateName}</strong> | Custom Device |{" "}
-                        {d.status || "No Status"}
-                      </>
+                      <><strong>{d.templateName}</strong> | Custom Device | {d.status || "No Status"}</>
                     ) : (
-                      <>
-                        <strong>{d.DeviceType}</strong> |{" "}
-                        {d.EmployeeName || "No User"} |{" "}
-                        {d.AssetCode || "No Asset"} |{" "}
-                        {d.SerialNumber || "No Serial"}
-                      </>
+                      <><strong>{d.DeviceType}</strong> | {d.EmployeeName || "No User"} | {d.AssetCode || "No Asset"} | {d.SerialNumber || "No Serial"}</>
                     )}
                   </div>
                 );
@@ -499,17 +307,16 @@ function Dashboard() {
         </div>
       </div>
 
+      {/* ── Inventory summary ── */}
       <div className="summary-section">
         <div className="section-title-row">
           <h2>Inventory Summary</h2>
-          <span>Live updated device category overview</span>
+          <span>{isAdmin ? "Live updated device category overview" : "Your assigned devices"}</span>
         </div>
-
         <div className="summary-grid">
           {summaryCards.map((card) => (
             <div className="summary-card-pro" key={card.title}>
               <div className="summary-icon">📦</div>
-
               <div>
                 <p>{card.title}</p>
                 <h2>{card.value}</h2>
@@ -519,31 +326,18 @@ function Dashboard() {
         </div>
       </div>
 
+      {/* ── Search results ── */}
       {results.length > 0 && (
         <div className="table-card">
           <h2>Search Results</h2>
-
           <table className="device-table">
             <thead>
               <tr>
-                <th>Type</th>
-                <th>Employee</th>
-                <th>EPF</th>
-                <th>Department</th>
-                <th>Device / Data</th>
-                <th>Model</th>
-                <th>Serial</th>
-                <th>Asset</th>
-                <th>Location</th>
-                <th>IP</th>
-                <th>SIM</th>
-                <th>PO</th>
-                <th>Status</th>
-                {/* 👇 ADMIN-ONLY ACTIONS HEADER */}
-                {isAdmin && <th>Actions</th>}
+                <th>Type</th><th>Employee</th><th>EPF</th><th>Department</th>
+                <th>Device / Data</th><th>Model</th><th>Serial</th><th>Asset</th>
+                <th>Location</th><th>IP</th><th>SIM</th><th>PO</th><th>Status</th>
               </tr>
             </thead>
-
             <tbody>{results.map((result) => renderResultRow(result))}</tbody>
           </table>
         </div>

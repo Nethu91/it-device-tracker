@@ -9,6 +9,7 @@ const Employee   = require("../models/Employee");
 const Department = require("../models/Department");
 const Location   = require("../models/Location");
 const User       = require("../models/User");
+const Device     = require("../models/Device");
 const cloudinary = require("../config/cloudinaryConfig");
 
 const { protect, adminOnly } = require("../middleware/authMiddleware");
@@ -129,9 +130,41 @@ const uploadToCloudinary = (fileBuffer, originalName) => {
   });
 };
 
-/* =========================================
-   DEPARTMENTS
-========================================= */
+// ✅ Employee Inactive වුණාම ඔහුට assign වුණ devices auto-release කරන function
+const releaseDevicesForEmployee = async (epfNumber, employeeName) => {
+  if (!epfNumber) return { releasedCount: 0 };
+
+  const assignedDevices = await Device.find({
+    EPFNumber: Number(epfNumber),
+    isDisposed: { $ne: true },
+  });
+
+  let releasedCount = 0;
+
+  for (const device of assignedDevices) {
+    // Previous Users history එකට add කරනවා
+    const previousUsers = Array.isArray(device.PreviousUsers) ? device.PreviousUsers : [];
+    if (device.EmployeeName && !previousUsers.includes(device.EmployeeName)) {
+      previousUsers.push(device.EmployeeName);
+    }
+
+    device.PreviousUsers        = previousUsers;
+    device.EmployeeName         = "";
+    device.EPFNumber            = null;
+    device.Designation          = "";
+    device.Status               = "Available";
+    device.releasedAt           = new Date();
+    device.releasedFromEmployee = employeeName || "";
+    device.releasedFromEPF      = Number(epfNumber);
+
+    await device.save();
+    releasedCount++;
+  }
+
+  return { releasedCount };
+};
+
+
 
 router.post("/departments", protect, adminOnly, async (req, res) => {
   try {
@@ -344,7 +377,20 @@ router.put("/:id", protect, adminOnly, async (req, res) => {
       });
     }
 
-    res.json({ message: "Employee updated successfully", employee: updatedEmployee });
+    // ✅ Employee Status → Inactive වුණොත්, assign වුණ devices auto-release කරනවා
+    let releaseResult = { releasedCount: 0 };
+    if (Status === "Inactive") {
+      releaseResult = await releaseDevicesForEmployee(
+        Number(EPFNumber),
+        updatedEmployee.FullName || `${FirstName} ${SecondName}`
+      );
+    }
+
+    res.json({
+      message: "Employee updated successfully",
+      employee: updatedEmployee,
+      devicesReleased: releaseResult.releasedCount,
+    });
   } catch (error) {
     console.log("Employee update error:", error);
     res.status(500).json({ message: "Failed to update employee", error: error.message });

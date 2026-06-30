@@ -105,11 +105,16 @@ const deviceSchema = new mongoose.Schema(
 
     Notes: { type: String, default: "", trim: true },
 
-    // ✅ Dispose / Lifecycle management fields
+    // Dispose / Lifecycle management fields
     isDisposed: { type: Boolean, default: false },
     disposedAt: { type: Date, default: null },
     disposalReason: { type: String, default: "", trim: true },
     expiryStatus: { type: String, default: "ACTIVE", trim: true },
+
+    // ✅ Vacant tracking — employee inactive වුණාම auto-release වුණ විට
+    releasedAt: { type: Date, default: null },
+    releasedFromEmployee: { type: String, default: "", trim: true }, // employee name who left
+    releasedFromEPF: { type: Number, default: null },
   },
   { timestamps: true }
 );

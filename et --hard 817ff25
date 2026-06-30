@@ -1,0 +1,27 @@
+[33m1f9b337[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m fix EPFNumber type mismatch
+[33m3453bb4[m Fix device POST route + API updates
+[33m817ff25[m Fix device API routes, dashboard data, and frontend filtering
+[33m3843ff8[m Refactor device lifecycle system, dispose feature, auth improvements, and frontend dashboard updates
+[33mbc77b88[m Update attendance management and activity logs
+[33md3571f7[m Fix custom device age build warning
+[33mf9d7046[m Update realtime age calculation for devices
+[33me800497[m Fix admin username login
+[33mdf36466[m Add Swisstek branding and app logo
+[33m5804462[m Remove env file and add gitignore
+[33me858810[m Fix Users page build warning
+[33m22bb09b[m Install xlsx for Excel export
+[33mb9a6dbb[m Update gitignore and latest project changes
+[33m8b3c4b2[m Fix Microsoft login backend route
+[33mc785b7e[m Add Microsoft Entra ID login integration and authentication updates
+[33mbf96ed7[m Fix deployed device API URL
+[33m44a20ec[m Update IT device tracker dashboard and device interfaces
+[33mad42618[m Fix unused Link import in Login
+[33m9e42b06[m Force redeploy
+[33m9ab3f54[m Redirect public register route
+[33me1216ef[m Remove public register page
+[33m7338e5d[m Add admin only user creation
+[33m95fb7e3[m Fix production auth API URLs
+[33m07e540d[m Trigger Vercel redeploy with correct email
+[33m5e8c38f[m Connect frontend to live backend
+[33mbe4f8a1[m Connect backend to MongoDB Atlas
+[33meeb935e[m Initial commit

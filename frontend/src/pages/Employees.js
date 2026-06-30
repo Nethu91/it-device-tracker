@@ -35,9 +35,21 @@ function Employees() {
   const [newLocation, setNewLocation] = useState("");
   const [editId, setEditId] = useState(null);
 
+  // ✅ Attachment modal state
+  const [attachmentModalEmployee, setAttachmentModalEmployee] = useState(null);
+  const [attachmentFile, setAttachmentFile] = useState(null);
+  const [attachmentUploading, setAttachmentUploading] = useState(false);
+  const [attachmentError, setAttachmentError] = useState("");
+
   const getHeaders = () => ({
     headers: {
       "Content-Type": "application/json",
+      Authorization: `Bearer ${localStorage.getItem("token")}`,
+    },
+  });
+
+  const getFileHeaders = () => ({
+    headers: {
       Authorization: `Bearer ${localStorage.getItem("token")}`,
     },
   });
@@ -67,10 +79,7 @@ function Employees() {
 
   const fetchDepartments = async () => {
     try {
-      const res = await axios.get(
-        `${API_URL}/api/employees/departments/all`,
-        getHeaders()
-      );
+      const res = await axios.get(`${API_URL}/api/employees/departments/all`, getHeaders());
       setDepartments(normalizeArray(res.data, "departments"));
     } catch (err) {
       console.log("Department Fetch Error:", err.response?.data || err.message);
@@ -80,10 +89,7 @@ function Employees() {
 
   const fetchLocations = async () => {
     try {
-      const res = await axios.get(
-        `${API_URL}/api/employees/locations/all`,
-        getHeaders()
-      );
+      const res = await axios.get(`${API_URL}/api/employees/locations/all`, getHeaders());
       setLocations(normalizeArray(res.data, "locations"));
     } catch (err) {
       console.log("Location Fetch Error:", err.response?.data || err.message);
@@ -100,46 +106,22 @@ function Employees() {
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-
-    setForm((prev) => ({
-      ...prev,
-      [name]: type === "checkbox" ? checked : value,
-    }));
+    setForm((prev) => ({ ...prev, [name]: type === "checkbox" ? checked : value }));
   };
 
   const resetForm = () => {
     setForm({
-      FirstName: "",
-      SecondName: "",
-      EPFNumber: "",
-      Department: "",
-      Location: "",
-      Status: "Active",
-
-      CompanyEmail: "",
-      AccessRole: "user",
-      CanLogin: true,
-
-      AdminUsername: "",
-      AdminPassword: "",
+      FirstName: "", SecondName: "", EPFNumber: "", Department: "", Location: "", Status: "Active",
+      CompanyEmail: "", AccessRole: "user", CanLogin: true,
+      AdminUsername: "", AdminPassword: "",
     });
-
     setEditId(null);
   };
 
   const addDepartment = async () => {
-    if (!newDepartment.trim()) {
-      alert("Please enter department name");
-      return;
-    }
-
+    if (!newDepartment.trim()) { alert("Please enter department name"); return; }
     try {
-      await axios.post(
-        `${API_URL}/api/employees/departments`,
-        { Name: newDepartment.trim() },
-        getHeaders()
-      );
-
+      await axios.post(`${API_URL}/api/employees/departments`, { Name: newDepartment.trim() }, getHeaders());
       setNewDepartment("");
       await fetchDepartments();
       alert("Department added successfully");
@@ -149,18 +131,9 @@ function Employees() {
   };
 
   const addLocation = async () => {
-    if (!newLocation.trim()) {
-      alert("Please enter location name");
-      return;
-    }
-
+    if (!newLocation.trim()) { alert("Please enter location name"); return; }
     try {
-      await axios.post(
-        `${API_URL}/api/employees/locations`,
-        { Name: newLocation.trim() },
-        getHeaders()
-      );
-
+      await axios.post(`${API_URL}/api/employees/locations`, { Name: newLocation.trim() }, getHeaders());
       setNewLocation("");
       await fetchLocations();
       alert("Location added successfully");
@@ -170,31 +143,11 @@ function Employees() {
   };
 
   const validateEmployeeForm = () => {
-    if (!form.FirstName.trim()) {
-      alert("First name is required");
-      return false;
-    }
-
-    if (!form.SecondName.trim()) {
-      alert("Second name is required");
-      return false;
-    }
-
-    if (!form.EPFNumber.toString().trim()) {
-      alert("EPF number is required");
-      return false;
-    }
-
-    if (!form.Department.trim()) {
-      alert("Department is required");
-      return false;
-    }
-
-    if (!form.Location.trim()) {
-      alert("Location is required");
-      return false;
-    }
-
+    if (!form.FirstName.trim()) { alert("First name is required"); return false; }
+    if (!form.SecondName.trim()) { alert("Second name is required"); return false; }
+    if (!form.EPFNumber.toString().trim()) { alert("EPF number is required"); return false; }
+    if (!form.Department.trim()) { alert("Department is required"); return false; }
+    if (!form.Location.trim()) { alert("Location is required"); return false; }
     if (
       form.CompanyEmail.trim() &&
       !form.CompanyEmail.toLowerCase().trim().endsWith("@swisstekaluminium.com")
@@ -202,76 +155,40 @@ function Employees() {
       alert("Please enter a valid Swisstek company Microsoft email");
       return false;
     }
-
     if (form.AccessRole === "admin") {
-      if (!form.CompanyEmail.trim()) {
-        alert("Company email is required for admin account");
-        return false;
-      }
-
-      if (!form.AdminUsername.trim()) {
-        alert("Admin username is required");
-        return false;
-      }
-
-      if (!editId && !form.AdminPassword.trim()) {
-        alert("Admin password is required for new admin account");
-        return false;
-      }
+      if (!form.CompanyEmail.trim()) { alert("Company email is required for admin account"); return false; }
+      if (!form.AdminUsername.trim()) { alert("Admin username is required"); return false; }
+      if (!editId && !form.AdminPassword.trim()) { alert("Admin password is required for new admin account"); return false; }
     }
-
     return true;
   };
 
   const saveEmployee = async (e) => {
     e.preventDefault();
-
-    if (!isAdmin) {
-      alert("Admin access only");
-      return;
-    }
-
+    if (!isAdmin) { alert("Admin access only"); return; }
     if (!validateEmployeeForm()) return;
 
     try {
       const companyEmail = form.CompanyEmail.trim().toLowerCase();
-
       const payload = {
-        FirstName: form.FirstName.trim(),
-        SecondName: form.SecondName.trim(),
-        EPFNumber: form.EPFNumber.toString().trim(),
-        Department: form.Department.trim(),
-        Location: form.Location.trim(),
-        Status: form.Status || "Active",
-
-        CompanyEmail: companyEmail,
-        AccessRole: form.AccessRole || "user",
+        FirstName: form.FirstName.trim(), SecondName: form.SecondName.trim(),
+        EPFNumber: form.EPFNumber.toString().trim(), Department: form.Department.trim(),
+        Location: form.Location.trim(), Status: form.Status || "Active",
+        CompanyEmail: companyEmail, AccessRole: form.AccessRole || "user",
         CanLogin: Boolean(form.CanLogin),
-
-        AdminUsername: form.AdminUsername.trim(),
-        AdminPassword: form.AdminPassword,
-
-        firstName: form.FirstName.trim(),
-        secondName: form.SecondName.trim(),
-        epfNumber: form.EPFNumber.toString().trim(),
-        department: form.Department.trim(),
-        location: form.Location.trim(),
-        status: form.Status || "Active",
-        companyEmail,
-        accessRole: form.AccessRole || "user",
+        AdminUsername: form.AdminUsername.trim(), AdminPassword: form.AdminPassword,
+        firstName: form.FirstName.trim(), secondName: form.SecondName.trim(),
+        epfNumber: form.EPFNumber.toString().trim(), department: form.Department.trim(),
+        location: form.Location.trim(), status: form.Status || "Active",
+        companyEmail, accessRole: form.AccessRole || "user",
         canLogin: Boolean(form.CanLogin),
-        adminUsername: form.AdminUsername.trim(),
-        adminPassword: form.AdminPassword,
+        adminUsername: form.AdminUsername.trim(), adminPassword: form.AdminPassword,
       };
 
       console.log("SENDING EMPLOYEE:", payload);
 
       if (editId) {
-        await axios.put(
-          `${API_URL}/api/employees/${editId}`,
-          payload,
-          getHeaders()
-        );
+        await axios.put(`${API_URL}/api/employees/${editId}`, payload, getHeaders());
         alert("Employee updated successfully");
       } else {
         await axios.post(`${API_URL}/api/employees`, payload, getHeaders());
@@ -287,7 +204,6 @@ function Employees() {
 
   const editEmployee = (emp) => {
     setEditId(emp._id);
-
     setForm({
       FirstName: emp.FirstName || emp.firstName || "",
       SecondName: emp.SecondName || emp.secondName || "",
@@ -295,23 +211,17 @@ function Employees() {
       Department: emp.Department || emp.department || "",
       Location: emp.Location || emp.location || "",
       Status: emp.Status || emp.status || "Active",
-
       CompanyEmail: emp.CompanyEmail || emp.companyEmail || "",
       AccessRole: emp.AccessRole || emp.accessRole || "user",
       CanLogin: emp.CanLogin === false || emp.canLogin === false ? false : true,
-
-      AdminUsername: emp.CompanyEmail
-        ? emp.CompanyEmail.split("@")[0]
-        : emp.FullName || "",
+      AdminUsername: emp.CompanyEmail ? emp.CompanyEmail.split("@")[0] : emp.FullName || "",
       AdminPassword: "",
     });
-
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const deleteEmployee = async (id) => {
     if (!window.confirm("Delete this employee?")) return;
-
     try {
       await axios.delete(`${API_URL}/api/employees/${id}`, getHeaders());
       alert("Employee deleted successfully");
@@ -321,14 +231,90 @@ function Employees() {
     }
   };
 
-  const getFullName = (emp) => {
-    return (
-      emp.FullName ||
-      emp.fullName ||
-      `${emp.FirstName || emp.firstName || ""} ${
-        emp.SecondName || emp.secondName || ""
-      }`.trim()
-    );
+  const getFullName = (emp) =>
+    emp.FullName || emp.fullName ||
+    `${emp.FirstName || emp.firstName || ""} ${emp.SecondName || emp.secondName || ""}`.trim();
+
+  /* ═══════════════════════════════════════════
+     ✅ ATTACHMENT FUNCTIONS
+  ═══════════════════════════════════════════ */
+
+  const openAttachmentModal = (emp) => {
+    setAttachmentModalEmployee(emp);
+    setAttachmentFile(null);
+    setAttachmentError("");
+  };
+
+  const closeAttachmentModal = () => {
+    setAttachmentModalEmployee(null);
+    setAttachmentFile(null);
+    setAttachmentError("");
+  };
+
+  const uploadAttachment = async () => {
+    if (!attachmentFile) {
+      setAttachmentError("Please select a file first");
+      return;
+    }
+    setAttachmentUploading(true);
+    setAttachmentError("");
+
+    try {
+      const formData = new FormData();
+      formData.append("file", attachmentFile);
+
+      const res = await axios.post(
+        `${API_URL}/api/employees/${attachmentModalEmployee._id}/attachments`,
+        formData,
+        getFileHeaders()
+      );
+
+      // Update modal employee's attachments locally
+      setAttachmentModalEmployee(res.data.employee);
+      setAttachmentFile(null);
+
+      // Refresh main employee list too
+      await fetchEmployees();
+    } catch (err) {
+      setAttachmentError(err.response?.data?.message || err.message || "Upload failed");
+    } finally {
+      setAttachmentUploading(false);
+    }
+  };
+
+  const deleteAttachment = async (attachmentId) => {
+    if (!window.confirm("Delete this attachment?")) return;
+    try {
+      await axios.delete(
+        `${API_URL}/api/employees/${attachmentModalEmployee._id}/attachments/${attachmentId}`,
+        getHeaders()
+      );
+
+      // Update modal locally
+      setAttachmentModalEmployee((prev) => ({
+        ...prev,
+        Attachments: prev.Attachments.filter((a) => a._id !== attachmentId),
+      }));
+
+      await fetchEmployees();
+    } catch (err) {
+      setAttachmentError(err.response?.data?.message || err.message || "Delete failed");
+    }
+  };
+
+  const formatFileSize = (bytes) => {
+    if (!bytes) return "";
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const getFileIcon = (fileType) => {
+    if (!fileType) return "📄";
+    if (fileType.includes("pdf")) return "📕";
+    if (fileType.includes("image")) return "🖼️";
+    if (fileType.includes("word") || fileType.includes("document")) return "📘";
+    return "📄";
   };
 
   return (
@@ -341,84 +327,29 @@ function Employees() {
       {isAdmin && (
         <div className="pro-card">
           <h2>Add Department & Location</h2>
-
           <div className="form-grid">
-            <input
-              placeholder="New Department"
-              value={newDepartment}
-              onChange={(e) => setNewDepartment(e.target.value)}
-            />
-
-            <button type="button" className="btn-save" onClick={addDepartment}>
-              Add Department
-            </button>
-
-            <input
-              placeholder="New Location"
-              value={newLocation}
-              onChange={(e) => setNewLocation(e.target.value)}
-            />
-
-            <button type="button" className="btn-save" onClick={addLocation}>
-              Add Location
-            </button>
+            <input placeholder="New Department" value={newDepartment} onChange={(e) => setNewDepartment(e.target.value)} />
+            <button type="button" className="btn-save" onClick={addDepartment}>Add Department</button>
+            <input placeholder="New Location" value={newLocation} onChange={(e) => setNewLocation(e.target.value)} />
+            <button type="button" className="btn-save" onClick={addLocation}>Add Location</button>
           </div>
         </div>
       )}
 
       {isAdmin && (
         <form className="device-form pro-card" onSubmit={saveEmployee}>
-          <input
-            name="FirstName"
-            placeholder="First Name"
-            value={form.FirstName}
-            onChange={handleChange}
-            required
-          />
+          <input name="FirstName" placeholder="First Name" value={form.FirstName} onChange={handleChange} required />
+          <input name="SecondName" placeholder="Second Name" value={form.SecondName} onChange={handleChange} required />
+          <input name="EPFNumber" type="text" placeholder="EPF Number" value={form.EPFNumber} onChange={handleChange} required />
 
-          <input
-            name="SecondName"
-            placeholder="Second Name"
-            value={form.SecondName}
-            onChange={handleChange}
-            required
-          />
-
-          <input
-            name="EPFNumber"
-            type="text"
-            placeholder="EPF Number"
-            value={form.EPFNumber}
-            onChange={handleChange}
-            required
-          />
-
-          <select
-            name="Department"
-            value={form.Department}
-            onChange={handleChange}
-            required
-          >
+          <select name="Department" value={form.Department} onChange={handleChange} required>
             <option value="">Select Department</option>
-            {departments.map((dep) => (
-              <option key={dep._id || dep.Name} value={dep.Name}>
-                {dep.Name}
-              </option>
-            ))}
+            {departments.map((dep) => <option key={dep._id || dep.Name} value={dep.Name}>{dep.Name}</option>)}
           </select>
 
-          <select
-            name="Location"
-            value={form.Location}
-            onChange={handleChange}
-            required
-          >
+          <select name="Location" value={form.Location} onChange={handleChange} required>
             <option value="">Select Location</option>
-            {locations.map((loc) => (
-              <option key={loc._id || loc.Name} value={loc.Name}>
-                {loc.Name}
-              </option>
-            ))}
+            {locations.map((loc) => <option key={loc._id || loc.Name} value={loc.Name}>{loc.Name}</option>)}
           </select>
 
           <select name="Status" value={form.Status} onChange={handleChange}>
@@ -426,69 +357,148 @@ function Employees() {
             <option value="Inactive">Inactive</option>
           </select>
 
-          <input
-            name="CompanyEmail"
-            type="email"
-            placeholder="Company Microsoft Email"
-            value={form.CompanyEmail}
-            onChange={handleChange}
-          />
+          <input name="CompanyEmail" type="email" placeholder="Company Microsoft Email" value={form.CompanyEmail} onChange={handleChange} />
 
-          <select
-            name="AccessRole"
-            value={form.AccessRole}
-            onChange={handleChange}
-          >
+          <select name="AccessRole" value={form.AccessRole} onChange={handleChange}>
             <option value="user">User</option>
             <option value="admin">Admin</option>
           </select>
 
           <label className="checkbox-label">
-            <input
-              type="checkbox"
-              name="CanLogin"
-              checked={form.CanLogin}
-              onChange={handleChange}
-            />
+            <input type="checkbox" name="CanLogin" checked={form.CanLogin} onChange={handleChange} />
             Allow Microsoft Login
           </label>
 
           {form.AccessRole === "admin" && (
             <>
+              <input name="AdminUsername" type="text" placeholder="Admin Username" value={form.AdminUsername} onChange={handleChange} required />
               <input
-                name="AdminUsername"
-                type="text"
-                placeholder="Admin Username"
-                value={form.AdminUsername}
-                onChange={handleChange}
-                required
-              />
-
-              <input
-                name="AdminPassword"
-                type="password"
-                placeholder={
-                  editId
-                    ? "Admin Password (leave blank to keep old password)"
-                    : "Admin Password"
-                }
-                value={form.AdminPassword}
-                onChange={handleChange}
-                required={!editId}
+                name="AdminPassword" type="password"
+                placeholder={editId ? "Admin Password (leave blank to keep old password)" : "Admin Password"}
+                value={form.AdminPassword} onChange={handleChange} required={!editId}
               />
             </>
           )}
 
-          <button className="btn-save" type="submit">
-            {editId ? "Update Employee" : "Add Employee"}
-          </button>
-
+          {/* ✅ Note: attachment add වෙන්නේ employee save කරපු පස්සේ, table එකේ "Attachments" button එකෙන් */}
           {editId && (
-            <button type="button" className="btn-delete" onClick={resetForm}>
-              Cancel Edit
-            </button>
+            <p style={{ gridColumn: "1 / -1", fontSize: "13px", color: "#6b7280", margin: "4px 0" }}>
+              📎 Attachments මේ employee ට add කරන්න table එකේ "Attachments" button click කරන්න.
+            </p>
           )}
+
+          <button className="btn-save" type="submit">{editId ? "Update Employee" : "Add Employee"}</button>
+          {editId && <button type="button" className="btn-delete" onClick={resetForm}>Cancel Edit</button>}
         </form>
+      )}
+
+      {/* ═══════════════════════════════════════════
+          ✅ ATTACHMENT MODAL
+      ═══════════════════════════════════════════ */}
+      {attachmentModalEmployee && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+          background: "rgba(0,0,0,0.5)", zIndex: 1000,
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
+          <div style={{
+            background: "#fff", borderRadius: "12px", padding: "28px",
+            maxWidth: "520px", width: "90%", maxHeight: "85vh", overflowY: "auto",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+              <h2 style={{ margin: 0 }}>📎 Attachments</h2>
+              <button onClick={closeAttachmentModal}
+                style={{ background: "none", border: "none", fontSize: "22px", cursor: "pointer", color: "#6b7280" }}>
+                ✕
+              </button>
+            </div>
+            <p style={{ color: "#6b7280", marginBottom: "20px", fontSize: "14px" }}>
+              {getFullName(attachmentModalEmployee)} — EPF: {attachmentModalEmployee.EPFNumber}
+            </p>
+
+            {attachmentError && (
+              <div style={{
+                background: "#fee2e2", border: "1px solid #fca5a5", color: "#991b1b",
+                padding: "10px 14px", borderRadius: "8px", marginBottom: "16px", fontSize: "13px",
+              }}>
+                ⚠️ {attachmentError}
+              </div>
+            )}
+
+            {/* Upload section */}
+            <div style={{
+              border: "2px dashed #d1d5db", borderRadius: "10px", padding: "20px",
+              textAlign: "center", marginBottom: "20px", background: "#f9fafb",
+            }}>
+              <input
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                onChange={(e) => setAttachmentFile(e.target.files[0])}
+                style={{ marginBottom: "12px" }}
+              />
+              <div style={{ fontSize: "12px", color: "#9ca3af", marginBottom: "12px" }}>
+                PDF, JPG, PNG, DOC, DOCX — Max 10MB
+              </div>
+              <button
+                type="button"
+                className="btn-save"
+                onClick={uploadAttachment}
+                disabled={attachmentUploading || !attachmentFile}
+                style={{ opacity: attachmentUploading || !attachmentFile ? 0.6 : 1 }}
+              >
+                {attachmentUploading ? "Uploading..." : "Upload Attachment"}
+              </button>
+            </div>
+
+            {/* Attachment list */}
+            <h3 style={{ fontSize: "15px", marginBottom: "12px" }}>
+              Uploaded Files ({(attachmentModalEmployee.Attachments || []).length})
+            </h3>
+
+            {(attachmentModalEmployee.Attachments || []).length === 0 ? (
+              <p style={{ color: "#9ca3af", fontSize: "14px" }}>No attachments uploaded yet.</p>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                {attachmentModalEmployee.Attachments.map((att) => (
+                  <div key={att._id} style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    padding: "10px 14px", border: "1px solid #e5e7eb", borderRadius: "8px",
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px", overflow: "hidden" }}>
+                      <span style={{ fontSize: "20px" }}>{getFileIcon(att.fileType)}</span>
+                      <div style={{ overflow: "hidden" }}>
+                        <a
+                          href={att.fileUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            fontSize: "13px", fontWeight: 500, color: "#1f2937",
+                            textDecoration: "none", whiteSpace: "nowrap",
+                            overflow: "hidden", textOverflow: "ellipsis", display: "block", maxWidth: "260px",
+                          }}
+                        >
+                          {att.fileName}
+                        </a>
+                        <span style={{ fontSize: "11px", color: "#9ca3af" }}>
+                          {att.uploadedAt ? new Date(att.uploadedAt).toLocaleDateString() : ""}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn-delete"
+                      onClick={() => deleteAttachment(att._id)}
+                      style={{ fontSize: "12px", padding: "4px 10px", flexShrink: 0 }}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       <div className="table-card">
@@ -502,6 +512,7 @@ function Employees() {
               <th>Company Email</th>
               <th>Access Role</th>
               <th>Can Login</th>
+              {isAdmin && <th>Attachments</th>}
               {isAdmin && <th>Action</th>}
             </tr>
           </thead>
@@ -510,55 +521,45 @@ function Employees() {
             {employees.map((emp) => (
               <tr key={emp._id}>
                 <td>{emp.EPFNumber || emp.epfNumber || "-"}</td>
-
                 <td>{getFullName(emp) || "-"}</td>
-
                 <td>{emp.Department || emp.department || "-"}</td>
-
                 <td>{emp.Location || emp.location || "-"}</td>
-
                 <td>{emp.CompanyEmail || emp.companyEmail || "-"}</td>
-
+                <td><span className="status-pill Active">{emp.AccessRole || emp.accessRole || "user"}</span></td>
                 <td>
-                  <span className="status-pill Active">
-                    {emp.AccessRole || emp.accessRole || "user"}
-                  </span>
+                  {emp.CanLogin === false || emp.canLogin === false
+                    ? <span className="status-pill Inactive">Disabled</span>
+                    : <span className="status-pill Active">Enabled</span>}
                 </td>
 
-                <td>
-                  {emp.CanLogin === false || emp.canLogin === false ? (
-                    <span className="status-pill Inactive">Disabled</span>
-                  ) : (
-                    <span className="status-pill Active">Enabled</span>
-                  )}
-                </td>
-
+                {/* ✅ Attachments button */}
                 {isAdmin && (
                   <td>
                     <button
-                      className="btn-edit"
                       type="button"
-                      onClick={() => editEmployee(emp)}
+                      onClick={() => openAttachmentModal(emp)}
+                      style={{
+                        background: (emp.Attachments || []).length > 0 ? "#2563eb" : "#6b7280",
+                        color: "#fff", border: "none", borderRadius: "6px",
+                        padding: "5px 12px", cursor: "pointer", fontSize: "12px", fontWeight: 500,
+                      }}
                     >
-                      Edit
+                      📎 {(emp.Attachments || []).length}
                     </button>
+                  </td>
+                )}
 
-                    <button
-                      className="btn-delete"
-                      type="button"
-                      onClick={() => deleteEmployee(emp._id)}
-                    >
-                      Delete
-                    </button>
+                {isAdmin && (
+                  <td>
+                    <button className="btn-edit" type="button" onClick={() => editEmployee(emp)}>Edit</button>
+                    <button className="btn-delete" type="button" onClick={() => deleteEmployee(emp._id)}>Delete</button>
                   </td>
                 )}
               </tr>
             ))}
 
             {employees.length === 0 && (
-              <tr>
-                <td colSpan={isAdmin ? 8 : 7}>No employees found</td>
-              </tr>
+              <tr><td colSpan={isAdmin ? 9 : 7}>No employees found</td></tr>
             )}
           </tbody>
         </table>
