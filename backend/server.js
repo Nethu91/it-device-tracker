@@ -1,108 +1,103 @@
 require("dotenv").config();
 
-const express = require("express");
+const express  = require("express");
 const mongoose = require("mongoose");
-const cors = require("cors");
-const path = require("path");
-const cron = require("node-cron");
+const cors     = require("cors");
+const path     = require("path");
 
 const app = express();
 
 /* ================================
-   JOB IMPORT (FIXED)
+   CORS
 ================================ */
 
-// ✅ FIXED: correct file name
-const runDeviceNotifications = require("./jobs/deviceExpiryJob");
-
-/* ================================
-   MIDDLEWARE
-================================ */
+const allowedOrigins = [
+  "http://localhost:3000",
+  "https://it-device-tracker.vercel.app",
+];
 
 app.use(
   cors({
-    origin: [
-      "http://localhost:3000",
-      "https://it-device-tracker.vercel.app",
-    ],
+    origin: (origin, callback) => {
+      // Allow requests with no origin (mobile apps, curl, Postman)
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error(`CORS blocked: ${origin}`));
+      }
+    },
     credentials: true,
   })
 );
 
+/* ================================
+   Body Parsers
+================================ */
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+/* ================================
+   Static Files
+================================ */
 
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 /* ================================
-   DATABASE CONNECTION
+   MongoDB Atlas Connection
 ================================ */
 
 mongoose
   .connect(process.env.MONGO_URI)
-  .then(() => console.log("MongoDB Atlas Connected"))
-  .catch((err) => console.log("MongoDB Connection Error:", err));
+  .then(() => console.log("✅ MongoDB Atlas connected"))
+  .catch((err) => console.error("❌ MongoDB connection error:", err.message));
 
 /* ================================
-   ROUTES
+   Health Check
 ================================ */
 
-app.use("/api/auth", require("./routes/authRoutes"));
-app.use("/api/devices", require("./routes/deviceRoutes"));
-app.use("/api/employees", require("./routes/employeeRoutes"));
+app.get("/", (req, res) => {
+  res.json({
+    message: "IT Device Tracker API Running",
+    status:  "ok",
+    time:    new Date().toISOString(),
+  });
+});
 
+/* ================================
+   API Routes
+================================ */
+
+app.use("/api/auth",           require("./routes/authRoutes"));
+app.use("/api/devices",        require("./routes/deviceRoutes"));
+app.use("/api/employees",      require("./routes/employeeRoutes"));
 app.use("/api/device-templates", require("./routes/templateRoutes"));
 app.use("/api/custom-devices", require("./routes/customDeviceRoutes"));
 
 /* ================================
-   HEALTH CHECK
-================================ */
-
-app.get("/", (req, res) => {
-  res.send("IT Device Tracker API Running...");
-});
-
-/* ================================
-   SAFE JOB WRAPPER
-================================ */
-
-const runJobSafely = async () => {
-  try {
-    console.log("🔄 Running device lifecycle job...");
-    await runDeviceNotifications();
-    console.log("✅ Device lifecycle job completed");
-  } catch (err) {
-    console.error("❌ Lifecycle job failed:", err.message);
-  }
-};
-
-/* ================================
-   CRON JOB (DAILY 12AM)
-================================ */
-
-cron.schedule("0 0 * * *", runJobSafely, {
-  timezone: "Asia/Colombo",
-});
-
-/* ================================
-   RUN ON SERVER START (TEST)
-================================ */
-
-runJobSafely();
-
-/* ================================
-   404 HANDLER
+   404 Handler  ← must be LAST
 ================================ */
 
 app.use((req, res) => {
   res.status(404).json({
     message: "API route not found",
-    path: req.originalUrl,
+    path:    req.originalUrl,
   });
 });
 
 /* ================================
-   START SERVER
+   Global Error Handler
+================================ */
+
+app.use((err, req, res, next) => {
+  console.error("Server error:", err.message);
+  res.status(err.status || 500).json({
+    message: err.message || "Internal server error",
+  });
+});
+
+/* ================================
+   Start Server
 ================================ */
 
 const PORT = process.env.PORT || 5000;

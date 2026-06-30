@@ -61,6 +61,20 @@ const employeeSchema = new mongoose.Schema(
       enum: ["Active", "Inactive"],
       default: "Active",
     },
+
+    // ✅ Attachments — Admin only upload (CVs, ID copies, certificates, etc.)
+    Attachments: {
+      type: [
+        {
+          fileName:   { type: String, default: "" },
+          fileUrl:    { type: String, default: "" },
+          publicId:   { type: String, default: "" }, // Cloudinary public_id — needed for delete
+          fileType:   { type: String, default: "" }, // pdf, jpg, png, etc.
+          uploadedAt: { type: Date, default: Date.now },
+        },
+      ],
+      default: [],
+    },
   },
   { timestamps: true }
 );
