@@ -46,6 +46,7 @@ function VacantDevices() {
 
   useEffect(() => {
     loadVacantDevices();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const filtered = devices.filter((d) => {
