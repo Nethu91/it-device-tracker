@@ -38,7 +38,7 @@ function DevicePage({ title, deviceType }) {
   const hideDeviceName = isServerDevice || isProjectorDevice || isWirelessAPDevice || isUPSDevice;
   const hideModel      = isWirelessAPDevice || isPortableTrackerDevice || isFingerprintDevice;
   const hideHandover   = isServerDevice || isProjectorDevice || isWirelessAPDevice || isFingerprintDevice || isSwitchDevice || isPortableTrackerDevice;
-  const hideIP         = isPortableTrackerDevice;
+  const hideIP         = isPortableTrackerDevice || isTabletDevice; // ✅ Tablet ට IP hide
 
   const emptyForm = {
     DeviceType: deviceType,
@@ -86,7 +86,6 @@ function DevicePage({ title, deviceType }) {
     return () => clearInterval(timer);
   }, []);
 
-  /* ── Age calculation ── */
   const calculateAge = (dateValue, customEndDate = "") => {
     if (!dateValue) return "-";
     const startDate = new Date(dateValue);
@@ -104,13 +103,10 @@ function DevicePage({ title, deviceType }) {
     return `${years} Year${years !== 1 ? "s" : ""} ${months} Month${months !== 1 ? "s" : ""} ${days} Day${days !== 1 ? "s" : ""}`;
   };
 
-  /* ── Check if device is 5+ years old ── */
   const isOver5Years = (device) => {
     const purchaseDate = device.PurchaseDate || device.purchaseDate;
     if (!purchaseDate) return false;
-    const start = new Date(purchaseDate);
-    const now   = new Date();
-    const years = (now - start) / (1000 * 60 * 60 * 24 * 365.25);
+    const years = (new Date() - new Date(purchaseDate)) / (1000 * 60 * 60 * 24 * 365.25);
     return years >= 5;
   };
 
@@ -125,7 +121,6 @@ function DevicePage({ title, deviceType }) {
     return [""];
   };
 
-  /* ── Employee helpers ── */
   const getEmployeeName = (emp) => {
     const fn = emp.FirstName || emp.firstName || "";
     const sn = emp.SecondName || emp.secondName || "";
@@ -159,7 +154,6 @@ function DevicePage({ title, deviceType }) {
     });
   };
 
-  /* ── API calls ── */
   const loadDevices = async () => {
     setLoading(true);
     setError("");
@@ -212,7 +206,6 @@ function DevicePage({ title, deviceType }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deviceType]);
 
-  /* ── Form handlers ── */
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
@@ -230,7 +223,6 @@ function DevicePage({ title, deviceType }) {
     setForm({ ...form, PreviousUsers: updated.length > 0 ? updated : [""] });
   };
 
-  /* ── Save ── */
   const saveDevice = async (e) => {
     e.preventDefault();
     if (!getToken()) { setError("You are not logged in."); return; }
@@ -268,11 +260,7 @@ function DevicePage({ title, deviceType }) {
     }
   };
 
-  /* ── Dispose ── */
-  const openDisposeModal = (id) => {
-    setDisposeTargetId(id);
-    setDisposeReason("");
-  };
+  const openDisposeModal = (id) => { setDisposeTargetId(id); setDisposeReason(""); };
 
   const confirmDispose = async () => {
     if (!disposeTargetId) return;
@@ -292,7 +280,6 @@ function DevicePage({ title, deviceType }) {
     }
   };
 
-  /* ── Edit / Delete ── */
   const editDevice = (d) => {
     setEditId(d._id);
     setForm({
@@ -348,7 +335,6 @@ function DevicePage({ title, deviceType }) {
     }
   };
 
-  /* ── Filter & Export ── */
   const filteredDevices = devices.filter((d) => {
     const keyword = search.toLowerCase();
     const previousUsersText = d.PreviousUsers ? normalizePreviousUsers(d.PreviousUsers).join(" ").toLowerCase() : "";
@@ -389,7 +375,6 @@ function DevicePage({ title, deviceType }) {
     XLSX.writeFile(wb, `${title}_Report.xlsx`);
   };
 
-  /* ── Render helpers ── */
   const renderEmployeeAutocomplete = (fieldName, placeholder) => {
     const listId = fieldName === "EmployeeName" ? "employee-name-list" : "employee-epf-list";
     return (
@@ -464,7 +449,9 @@ function DevicePage({ title, deviceType }) {
     { label: "Serial", value: "SerialNumber" },
     { label: "Asset", value: "AssetCode" },
     { label: "Location", value: "Location" },
+    // ✅ Tablet ට IP hide කරලා Vendor column add
     ...(!hideIP ? [{ label: "IP", value: "IPAddress" }] : []),
+    ...(isTabletDevice ? [{ label: "Vendor", value: "Vendor" }] : []),
     ...(isSIMDevice ? [{ label: "SIM Type", value: "SIMType" }] : []),
     ...(isComputerDevice ? [{ label: "Vendor", value: "Vendor" }, { label: "Invoice", value: "InvoiceNumber" }, { label: "Rent", value: "RentOrNot" }, { label: "OS", value: "OSVersion" }, { label: "Processor", value: "Processor" }, { label: "Gen", value: "Gen" }, { label: "RAM", value: "RAMGB" }, { label: "HDD", value: "HDDGB" }, { label: "SSD", value: "SSDGB" }, { label: "Pen", value: "PenStorage" }, { label: "Mouse", value: "MouseType" }, { label: "Keyboard", value: "KeyboardType" }] : []),
     { label: "Status", value: "Status" },
@@ -494,7 +481,6 @@ function DevicePage({ title, deviceType }) {
         <span className="device-count">{filteredDevices.length} Devices</span>
       </div>
 
-      {/* ── Error banner ── */}
       {error && (
         <div style={{ background: "#fee2e2", border: "1px solid #fca5a5", color: "#991b1b", padding: "12px 16px", borderRadius: "8px", marginBottom: "16px", fontWeight: 500, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span>⚠️ {error}</span>
@@ -502,7 +488,6 @@ function DevicePage({ title, deviceType }) {
         </div>
       )}
 
-      {/* ── Dispose confirm modal ── */}
       {disposeTargetId && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <div style={{ background: "#fff", borderRadius: "12px", padding: "32px", maxWidth: "440px", width: "90%", boxShadow: "0 8px 32px rgba(0,0,0,0.2)" }}>
@@ -522,7 +507,6 @@ function DevicePage({ title, deviceType }) {
         </div>
       )}
 
-      {/* ── Stat cards ── */}
       <div className="device-dashboard-cards">
         {[
           { label: "Total",     count: devices.length },
@@ -536,7 +520,6 @@ function DevicePage({ title, deviceType }) {
         ))}
       </div>
 
-      {/* ── Add/Edit form (admin only) ── */}
       {isAdmin && (
         <form className="device-form pro-card" onSubmit={saveDevice}>
           {needsEmployee && (<>{renderEmployeeAutocomplete("EmployeeName", "Search Employee Name")}{renderEmployeeAutocomplete("EPFNumber", "Search EPF Number")}</>)}
@@ -555,6 +538,8 @@ function DevicePage({ title, deviceType }) {
           {isPortableTrackerDevice && (<>{renderTextInput("PortableTracking", "Portable Tracking")}{renderTextInput("PortableTrackingNumber", "Portable Tracking Number")}{renderTextInput("PortableTrackingSIMNumber", "Portable Tracking SIM Number")}{renderTextInput("PortableVendor", "Vendor")}{renderTextInput("PortableInvoiceNo", "Invoice No")}</>)}
           {isFingerprintDevice && (<>{renderTextInput("PowerAppSID", "Power App ID")}{renderTextInput("NewIPAfterVLAN", "New IP After VLAN")}</>)}
           {isComputerDevice && (<>{renderTextInput("Vendor", "Vendor")}{renderTextInput("InvoiceNumber", "Invoice Number")}{renderSelect("RentOrNot", ["Rent", "Not Rent"], "Rent or Not")}{renderTextInput("OSVersion", "OS Version")}{renderTextInput("Processor", "Processor")}{renderTextInput("Gen", "Generation")}{renderTextInput("RAMGB", "RAM (GB)")}{renderTextInput("HDDGB", "HDD (GB)")}{renderTextInput("SSDGB", "SSD (GB)")}{renderTextInput("PenStorage", "Pen Storage")}{renderSelect("MouseType", ["Wired", "Wireless"], "Select Mouse Type")}{renderSelect("KeyboardType", ["Wired", "Wireless"], "Select Keyboard Type")}</>)}
+          {/* ✅ Tablet ට Vendor field add */}
+          {isTabletDevice && renderTextInput("Vendor", "Vendor")}
           {renderTextInput("SerialNumber", "Serial Number")}
           {renderTextInput("AssetCode", "Asset Code")}
           {renderTextInput("Location", "Location")}
@@ -583,7 +568,6 @@ function DevicePage({ title, deviceType }) {
         </form>
       )}
 
-      {/* ── Search/filter bar ── */}
       <div className="pro-card">
         <div className="search-box">
           <input placeholder="Search by EPF, name, previous user, serial, asset, department, location, PO, vendor, invoice" value={search} onChange={(e) => setSearch(e.target.value)} />
@@ -596,7 +580,6 @@ function DevicePage({ title, deviceType }) {
         </div>
       </div>
 
-      {/* ── Table ── */}
       <div className="table-card">
         {loading ? (
           <div style={{ padding: "32px", textAlign: "center", color: "#6b7280" }}>Loading devices...</div>
@@ -618,7 +601,6 @@ function DevicePage({ title, deviceType }) {
                     <td>
                       <button className="btn-edit" onClick={() => editDevice(device)}>Edit</button>
                       <button className="btn-delete" onClick={() => deleteDevice(device._id)}>Delete</button>
-                      {/* ✅ Dispose button — 5yr+ devices ට orange highlight */}
                       <button
                         onClick={() => openDisposeModal(device._id)}
                         style={{
