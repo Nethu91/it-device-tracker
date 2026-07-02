@@ -373,13 +373,6 @@ function Employees() {
             </>
           )}
 
-          {/* ✅ Note: attachment add වෙන්නේ employee save කරපු පස්සේ, table එකේ "Attachments" button එකෙන් */}
-          {editId && (
-            <p style={{ gridColumn: "1 / -1", fontSize: "13px", color: "#6b7280", margin: "4px 0" }}>
-              📎 Attachments මේ employee ට add කරන්න table එකේ "Attachments" button click කරන්න.
-            </p>
-          )}
-
           <button className="btn-save" type="submit">{editId ? "Update Employee" : "Add Employee"}</button>
           {editId && <button type="button" className="btn-delete" onClick={resetForm}>Cancel Edit</button>}
         </form>
