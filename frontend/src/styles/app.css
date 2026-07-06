@@ -285,10 +285,14 @@ html, body {
 .table-card table thead th,
 .table-card th {
   position: sticky;
-  top: 0;
+  top: -1px;
   z-index: 10;
   background: #b30000;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  border-bottom: 2px solid #b30000;
+  outline: 1px solid #b30000;
 }
 
 .device-table thead,
@@ -321,8 +325,15 @@ html, body {
 
 .device-table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   min-width: 1500px;
+}
+
+.table-card table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
 }
 
 .device-table thead {
@@ -517,7 +528,8 @@ html, body {
 
 .table-card table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
 }
 
 .table-card th {
@@ -589,7 +601,8 @@ html, body {
 
 .table-card table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
 }
 
 .table-card td {
@@ -1055,4 +1068,9 @@ html, body {
     padding: 6px 9px;
     font-size: 11px;
   }
+}
+
+/* ===== Fix: remove padding on table-card so sticky header has no gap for scrolled rows to peek through ===== */
+.table-card {
+  padding: 0 !important;
 }
