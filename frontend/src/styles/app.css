@@ -859,3 +859,151 @@ body {
   gap: 6px;
   font-weight: 600;
 }
+
+/* ===================================================
+   RESPONSIVE FIXES - AUTO ADJUST TO SCREEN SIZE
+   =================================================== */
+
+/* Small laptops / large tablets */
+@media (max-width: 1200px) {
+  .device-form {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .form-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Tablets */
+@media (max-width: 900px) {
+  .main-content {
+    padding: 16px;
+  }
+
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .device-form {
+    grid-template-columns: 1fr;
+  }
+
+  .device-form textarea {
+    grid-column: span 1;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .field-builder-row {
+    grid-template-columns: 1fr;
+  }
+
+  .search-box {
+    flex-direction: column;
+  }
+
+  .search-box input,
+  .search-box select,
+  .search-box button {
+    width: 100%;
+  }
+
+  .summary-grid {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  }
+
+  .device-dashboard-cards {
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  }
+
+  .form-actions {
+    flex-direction: column;
+  }
+
+  .form-actions button {
+    width: 100%;
+  }
+
+  .profile-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Mobile phones */
+@media (max-width: 600px) {
+  .logo {
+    width: 130px;
+  }
+
+  .logo-section h2 {
+    font-size: 18px;
+  }
+
+  .page-header h1 {
+    font-size: 24px;
+  }
+
+  .device-count,
+  .count-badge,
+  .page-header span {
+    font-size: 12px;
+    padding: 6px 12px;
+  }
+
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-card h1 {
+    font-size: 26px;
+  }
+
+  .device-stat-card p {
+    font-size: 20px;
+  }
+
+  .device-stat-card,
+  .dashboard-card {
+    padding: 14px;
+  }
+
+  .summary-card-pro h2 {
+    font-size: 22px;
+  }
+
+  .device-table {
+    min-width: 900px;
+  }
+
+  .device-table th,
+  .device-table td,
+  .table-card th,
+  .table-card td {
+    padding: 8px;
+    font-size: 12px;
+  }
+
+  .pro-card,
+  .search-card,
+  .table-card {
+    padding: 14px;
+  }
+
+  .auth-card {
+    width: 92%;
+    padding: 22px;
+  }
+
+  .btn-edit,
+  .btn-delete,
+  .device-table td .btn-edit,
+  .device-table td .btn-delete {
+    padding: 6px 9px;
+    font-size: 11px;
+  }
+}
