@@ -429,6 +429,29 @@ function DevicePage({ title, deviceType }) {
     </select>
   );
 
+  // ✅ Location dropdown - unique locations already used for this device type
+  const uniqueLocations = Array.from(
+    new Set(devices.map((d) => d.Location).filter((loc) => loc && loc.trim() !== ""))
+  ).sort();
+
+  const renderLocationInput = () => (
+    <>
+      <input
+        name="Location"
+        list="location-list"
+        placeholder="Select or type Location"
+        value={form.Location}
+        onChange={handleChange}
+        autoComplete="off"
+      />
+      <datalist id="location-list">
+        {uniqueLocations.map((loc) => (
+          <option key={loc} value={loc} />
+        ))}
+      </datalist>
+    </>
+  );
+
   /* ── Table columns ── */
   const tableColumns = [
     ...(needsEmployee ? [{ label: "Employee", value: "EmployeeName" }, { label: "EPF", value: "EPFNumber" }] : []),
@@ -542,7 +565,7 @@ function DevicePage({ title, deviceType }) {
           {isTabletDevice && renderTextInput("Vendor", "Vendor")}
           {renderTextInput("SerialNumber", "Serial Number")}
           {renderTextInput("AssetCode", "Asset Code")}
-          {renderTextInput("Location", "Location")}
+          {renderLocationInput()}
           {!hideIP && renderTextInput("IPAddress", "IP Address")}
           <select name="Status" value={form.Status} onChange={handleChange}>
             <option>Available</option><option>Assigned</option><option>In Repair</option><option>Retired</option><option>Missing</option>
