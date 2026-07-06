@@ -276,6 +276,47 @@ html, body {
 
 .table-card {
   overflow-x: auto;
+  overflow-y: auto;
+  max-height: 70vh;
+}
+
+.device-table thead th,
+.table-card thead th,
+.table-card table thead th,
+.table-card th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #b30000;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+.device-table thead,
+.table-card thead,
+.table-card table thead {
+  position: sticky;
+  top: 0;
+  z-index: 9;
+  background: #b30000;
+}
+
+.device-table thead tr,
+.table-card thead tr,
+.table-card table thead tr {
+  position: sticky;
+  top: 0;
+  z-index: 9;
+  background: #b30000;
+}
+
+.device-table thead {
+  background: linear-gradient(90deg, #7a0000, #b30000);
+}
+
+.device-table tbody tr,
+.table-card tbody tr {
+  position: relative;
+  z-index: 1;
 }
 
 .device-table {
