@@ -459,7 +459,7 @@ function DevicePage({ title, deviceType }) {
     ...(!hideDeviceName ? [{ label: "Device", value: "DeviceName" }] : []),
     { label: "PO Number", value: "PONumber" },
     ...(isPrinterDevice ? [{ label: "Toner Model", value: "TonerModel" }, { label: "Current User", value: "CurrentUser" }, { label: "Rent", value: "RentOrNot" }] : []),
-    ...(isSwitchDevice ? [{ label: "IT Ref No", value: "ITReferenceNumber" }, { label: "Vendor", value: "Vendor" }] : []),
+    ...(isSwitchDevice ? [{ label: "Exact Location", value: "ExactLocation" }, { label: "IT Ref No", value: "ITReferenceNumber" }, { label: "Vendor", value: "Vendor" }] : []),
     ...(isTabletDevice || isSIMDevice ? [{ label: "SIM Number", value: "SIMNumber" }] : []),
     ...(!hideModel && !isSmartBoardDevice ? [{ label: isServerDevice ? "Server Brand" : "Model", value: "Model" }] : []),
     ...(isServerDevice ? [{ label: "Server Model", value: "ServerModel" }, { label: "Processor", value: "ServerProcessor" }, { label: "RAM", value: "ServerRAM" }, { label: "HDD", value: "ServerHDD" }, { label: "OS", value: "ServerOS" }, { label: "Vendor", value: "ServerVendor" }, { label: "Purpose", value: "ServerPurpose" }] : []),
