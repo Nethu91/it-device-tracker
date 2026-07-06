@@ -15,7 +15,7 @@ const cloudinary = require("../config/cloudinaryConfig");
 const { protect, adminOnly } = require("../middleware/authMiddleware");
 
 /* =========================================
-   MULTER — memory storage (Cloudinary upload වෙන්නේ direct stream එකකින්)
+   MULTER — memory storage 
 ========================================= */
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -130,7 +130,7 @@ const uploadToCloudinary = (fileBuffer, originalName) => {
   });
 };
 
-// ✅ Employee Inactive වුණාම ඔහුට assign වුණ devices auto-release කරන function
+
 const releaseDevicesForEmployee = async (epfNumber, employeeName) => {
   if (!epfNumber) return { releasedCount: 0 };
 
@@ -142,7 +142,7 @@ const releaseDevicesForEmployee = async (epfNumber, employeeName) => {
   let releasedCount = 0;
 
   for (const device of assignedDevices) {
-    // Previous Users history එකට add කරනවා
+    // Previous Users history add 
     const previousUsers = Array.isArray(device.PreviousUsers) ? device.PreviousUsers : [];
     if (device.EmployeeName && !previousUsers.includes(device.EmployeeName)) {
       previousUsers.push(device.EmployeeName);
@@ -483,7 +483,7 @@ router.delete("/:id/attachments/:attachmentId", protect, adminOnly, async (req, 
       return res.status(404).json({ message: "Attachment not found" });
     }
 
-    // Cloudinary එකෙන් file එක delete කරනවා
+    
     const isRaw = !attachment.fileType.startsWith("image/");
     try {
       await cloudinary.uploader.destroy(attachment.publicId, {
@@ -491,7 +491,7 @@ router.delete("/:id/attachments/:attachmentId", protect, adminOnly, async (req, 
       });
     } catch (cloudErr) {
       console.log("Cloudinary delete warning:", cloudErr.message);
-      // Cloudinary delete fail වුණත් DB record එක remove කරනවා
+      
     }
 
     employee.Attachments.pull(req.params.attachmentId);
