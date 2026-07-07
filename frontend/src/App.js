@@ -30,11 +30,6 @@ import CustomDevicePage  from "./pages/CustomDevicePage";
 
 import "./styles/app.css";
 
-const BASE_UPLOAD_URL =
-  window.location.hostname === "localhost"
-    ? "http://localhost:5000/uploads"
-    : "https://it-device-tracker.onrender.com/uploads";
-
 function Layout() {
   const location  = useLocation();
   const { instance } = useMsal();
@@ -42,9 +37,29 @@ function Layout() {
   const hideSidebar = location.pathname === "/login";
   const token       = localStorage.getItem("token");
 
-  const storedUser = localStorage.getItem("user");
-  const user       = storedUser ? JSON.parse(storedUser) : null;
-  const isAdmin    = String(user?.role || "").toLowerCase() === "admin";
+  // ✅ user is now state, so the sidebar re-renders when the profile updates
+  const [user, setUser] = useState(() => {
+    const storedUser = localStorage.getItem("user");
+    return storedUser ? JSON.parse(storedUser) : null;
+  });
+
+  const isAdmin = String(user?.role || "").toLowerCase() === "admin";
+
+  // ✅ Refresh sidebar's user data whenever Profile.js saves an update
+  useEffect(() => {
+    const refreshUser = () => {
+      const storedUser = localStorage.getItem("user");
+      setUser(storedUser ? JSON.parse(storedUser) : null);
+    };
+
+    window.addEventListener("userUpdated", refreshUser);
+    window.addEventListener("storage", refreshUser);
+
+    return () => {
+      window.removeEventListener("userUpdated", refreshUser);
+      window.removeEventListener("storage", refreshUser);
+    };
+  }, []);
 
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -82,7 +97,8 @@ function Layout() {
     }
   };
 
-  const profileImageUrl = user?.profilePicture ? `${BASE_UPLOAD_URL}/${user.profilePicture}` : null;
+  // ✅ profilePicture is now a full Cloudinary URL — use it directly
+  const profileImageUrl = user?.profilePicture || null;
 
   return (
     <div className="app">

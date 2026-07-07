@@ -70,6 +70,9 @@ function Profile() {
       localStorage.setItem("user", JSON.stringify(res.data.user));
       setUser(res.data.user);
 
+      // ✅ Notify App.js sidebar to refresh immediately without needing a page reload
+      window.dispatchEvent(new Event("userUpdated"));
+
       alert("Profile updated successfully");
     } catch (err) {
       console.error("Profile update error:", err.response?.data || err.message);
