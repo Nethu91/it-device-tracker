@@ -236,7 +236,7 @@ function DevicePage({ title, deviceType }) {
     if (!isSIMDevice) payload.SIMType = "";
     if (isWirelessAPDevice) { payload.EmployeeName = ""; payload.EPFNumber = ""; payload.DeviceName = ""; payload.Model = ""; payload.HandoverDate = ""; }
     if (isFingerprintDevice) { payload.EmployeeName = ""; payload.EPFNumber = ""; payload.Model = ""; payload.HandoverDate = ""; }
-    if (isPortableTrackerDevice) { payload.Model = ""; payload.HandoverDate = ""; payload.IPAddress = ""; }
+    if (isPortableTrackerDevice) { payload.HandoverDate = ""; payload.IPAddress = ""; }
     if (!isComputerDevice) {
       payload.InvoiceNumber = "";
       payload.RentOrNot     = isPrinterDevice ? payload.RentOrNot : "";
