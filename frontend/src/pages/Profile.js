@@ -125,11 +125,8 @@ function Profile() {
     }
   };
 
-  const imageUrl = user?.profilePicture
-    ? window.location.hostname === "localhost"
-      ? `http://localhost:5000/uploads/${user.profilePicture}`
-      : `https://it-device-tracker.onrender.com/uploads/${user.profilePicture}`
-    : null;
+  // ✅ profilePicture is now a full Cloudinary URL (permanent), not a local filename
+  const imageUrl = user?.profilePicture || null;
 
   return (
     <div className="profile-page">

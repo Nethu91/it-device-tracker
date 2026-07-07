@@ -5,31 +5,49 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
 const multer = require("multer");
-const path = require("path");
-const fs = require("fs");
+const streamifier = require("streamifier");
 
 const { protect, adminOnly } = require("../middleware/authMiddleware");
 const User = require("../models/User");
 const Employee = require("../models/Employee");
 const verifyMicrosoftToken = require("../middleware/microsoftVerify");
+const cloudinary = require("../config/cloudinaryConfig");
 
-const uploadDir = "uploads";
-
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir);
-}
-
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, "uploads/");
-  },
-
-  filename: function (req, file, cb) {
-    cb(null, Date.now() + path.extname(file.originalname));
+/* =========================================
+   MULTER — memory storage (no local disk)
+   Files are streamed directly to Cloudinary,
+   so nothing is lost when the server restarts.
+========================================= */
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only JPG, PNG, or WEBP images are allowed"));
+    }
   },
 });
 
-const upload = multer({ storage });
+// ✅ Cloudinary stream upload helper (profile pictures)
+const uploadProfilePictureToCloudinary = (fileBuffer, originalName) => {
+  return new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      {
+        folder: "profile_pictures",
+        resource_type: "image",
+        public_id: `${Date.now()}_${originalName.replace(/\.[^/.]+$/, "")}`,
+      },
+      (error, result) => {
+        if (error) reject(error);
+        else resolve(result);
+      }
+    );
+    streamifier.createReadStream(fileBuffer).pipe(uploadStream);
+  });
+};
 
 /* =========================================
    TOKEN HELPERS
@@ -155,6 +173,15 @@ router.post(
 
       const hashedPassword = await bcrypt.hash(password, 10);
 
+      let profilePictureUrl = "";
+      if (req.file) {
+        const result = await uploadProfilePictureToCloudinary(
+          req.file.buffer,
+          req.file.originalname
+        );
+        profilePictureUrl = result.secure_url;
+      }
+
       const user = new User({
         username: username.trim(),
         email: normalizedEmail,
@@ -163,7 +190,7 @@ router.post(
         phone: phone || "",
         department: department || "",
         position: position || "",
-        profilePicture: req.file ? req.file.filename : "",
+        profilePicture: profilePictureUrl,
         authProvider: "local",
       });
 
@@ -471,7 +498,11 @@ router.put(
       }
 
       if (req.file) {
-        updateData.profilePicture = req.file.filename;
+        const result = await uploadProfilePictureToCloudinary(
+          req.file.buffer,
+          req.file.originalname
+        );
+        updateData.profilePicture = result.secure_url;
       }
 
       const updatedUser = await User.findByIdAndUpdate(
