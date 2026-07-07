@@ -36,7 +36,7 @@ function DevicePage({ title, deviceType }) {
   const needsEmployee  = !noEmployeeDeviceTypes.includes(deviceType);
   const hideDepartment = false;
   const hideDeviceName = isServerDevice || isProjectorDevice || isWirelessAPDevice || isUPSDevice;
-  const hideModel      = isWirelessAPDevice || isPortableTrackerDevice || isFingerprintDevice;
+  const hideModel      = isWirelessAPDevice || isFingerprintDevice;
   const hideHandover   = isServerDevice || isProjectorDevice || isWirelessAPDevice || isFingerprintDevice || isSwitchDevice || isPortableTrackerDevice;
   const hideIP         = isPortableTrackerDevice || isTabletDevice; // ✅ Tablet ට IP hide
 
