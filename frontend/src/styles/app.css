@@ -327,7 +327,8 @@ html, body {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  min-width: 1500px;
+  table-layout: auto;
+  font-size: 13px;
 }
 
 .table-card table {
@@ -343,8 +344,17 @@ html, body {
 
 .device-table th,
 .device-table td {
-  padding: 14px;
+  padding: 6px 8px;
   text-align: left;
+  white-space: normal;
+  word-wrap: break-word;
+  max-width: 110px;
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.device-table th {
+  font-size: 12px;
 }
 
 .device-table tbody tr {
@@ -863,12 +873,13 @@ html, body {
 }
 .device-table td .btn-edit,
 .device-table td .btn-delete {
-  margin-right: 6px;
-  padding: 7px 12px;
-  border-radius: 7px;
+  margin-right: 4px;
+  padding: 4px 8px;
+  border-radius: 6px;
   border: none;
   cursor: pointer;
   font-weight: 600;
+  font-size: 11px;
 }
 
 .device-table td .btn-edit {
