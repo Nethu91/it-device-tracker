@@ -474,7 +474,7 @@ function DevicePage({ title, deviceType }) {
     ...(isUPSDevice ? [{ label: "Brand", value: "UPSBrand" }, { label: "IT Ref No", value: "UPSITReferenceNumber" }, { label: "Vendor", value: "UPSVendor" }] : []),
     ...(isSmartBoardDevice ? [{ label: "Model", value: "Model" }, { label: "Description", value: "Description" }, { label: "Vendor", value: "Vendor" }, { label: "Current Location", value: "CurrentLocation" }] : []),
     ...(isPortableTrackerDevice ? [{ label: "Portable Tracking", value: "PortableTracking" }, { label: "User Name", value: "PortableTrackingNumber" }, { label: "Tracking SIM", value: "PortableTrackingSIMNumber" }, { label: "Vendor", value: "PortableVendor" }, { label: "Invoice No", value: "PortableInvoiceNo" }] : []),
-    ...(isFingerprintDevice ? [{ label: "Exact Location", value: "ExactLocation" }, { label: "Power App ID", value: "PowerAppSID" }, { label: "New IP After VLAN", value: "NewIPAfterVLAN" }] : []),
+    ...(isFingerprintDevice ? [{ label: "Exact Location", value: "ExactLocation" }, { label: "Vendor", value: "Vendor" }, { label: "Power App ID", value: "PowerAppSID" }, { label: "New IP After VLAN", value: "NewIPAfterVLAN" }] : []),
     { label: "Serial", value: "SerialNumber" },
     { label: "Asset", value: "AssetCode" },
     { label: "Location", value: "Location" },
@@ -566,7 +566,7 @@ function DevicePage({ title, deviceType }) {
           {isUPSDevice && (<>{renderTextInput("UPSBrand", "Brand")}{renderTextInput("UPSITReferenceNumber", "IT Reference Number")}{renderTextInput("UPSVendor", "Vendor")}</>)}
           {isSmartBoardDevice && (<>{renderTextInput("Model", "Model")}{renderTextInput("Description", "Description")}{renderTextInput("Vendor", "Vendor")}{renderTextInput("CurrentLocation", "Current Location")}</>)}
           {isPortableTrackerDevice && (<>{renderTextInput("PortableTracking", "Portable Tracking")}{renderTextInput("PortableTrackingNumber", "User Name")}{renderTextInput("PortableTrackingSIMNumber", "Portable Tracking SIM Number")}{renderTextInput("PortableVendor", "Vendor")}{renderTextInput("PortableInvoiceNo", "Invoice No")}</>)}
-          {isFingerprintDevice && (<>{renderTextInput("ExactLocation", "Exact Location")}{renderTextInput("PowerAppSID", "Power App ID")}{renderTextInput("NewIPAfterVLAN", "New IP After VLAN")}</>)}
+          {isFingerprintDevice && (<>{renderTextInput("ExactLocation", "Exact Location")}{renderTextInput("Vendor", "Vendor")}{renderTextInput("PowerAppSID", "Power App ID")}{renderTextInput("NewIPAfterVLAN", "New IP After VLAN")}</>)}
           {isComputerDevice && (<>{renderTextInput("Vendor", "Vendor")}{renderTextInput("InvoiceNumber", "Invoice Number")}{renderSelect("RentOrNot", ["Rent", "Not Rent"], "Rent or Not")}{renderTextInput("OSVersion", "OS Version")}{renderTextInput("Processor", "Processor")}{renderTextInput("Gen", "Generation")}{renderTextInput("RAMGB", "RAM (GB)")}{renderTextInput("HDDGB", "HDD (GB)")}{renderTextInput("SSDGB", "SSD (GB)")}{renderTextInput("PenStorage", "Pen Storage")}{renderSelect("MouseType", ["Wired", "Wireless"], "Select Mouse Type")}{renderSelect("KeyboardType", ["Wired", "Wireless"], "Select Keyboard Type")}</>)}
           {/* ✅ Tablet ට Vendor field add */}
           {isTabletDevice && renderTextInput("Vendor", "Vendor")}
