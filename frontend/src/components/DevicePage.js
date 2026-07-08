@@ -40,6 +40,10 @@ function DevicePage({ title, deviceType }) {
   const hideHandover   = isServerDevice || isProjectorDevice || isWirelessAPDevice || isFingerprintDevice || isSwitchDevice || isPortableTrackerDevice;
   const hideIP         = isPortableTrackerDevice || isTabletDevice; // ✅ Tablet ට IP hide
 
+  // ✅ Dongles (SIM) page eke "Device Name" field eka "Vendor" widihata පෙන්නනවා
+  const deviceNameLabel = isSIMDevice ? "Vendor" : "Device Name";
+  const deviceNameColumnLabel = isSIMDevice ? "Vendor" : "Device";
+
   const emptyForm = {
     DeviceType: deviceType,
     EmployeeName: "", EPFNumber: "", Department: "", Designation: "",
@@ -456,7 +460,8 @@ function DevicePage({ title, deviceType }) {
   const tableColumns = [
     ...(needsEmployee ? [{ label: "Employee", value: "EmployeeName" }, { label: "EPF", value: "EPFNumber" }] : []),
     ...(!hideDepartment ? [{ label: "Department", value: "Department" }] : []),
-    ...(!hideDeviceName ? [{ label: "Device", value: "DeviceName" }] : []),
+    // ✅ Dongles (SIM) page eke column header eka "Vendor" widihata පෙන්නනවා
+    ...(!hideDeviceName ? [{ label: deviceNameColumnLabel, value: "DeviceName" }] : []),
     { label: "PO Number", value: "PONumber" },
     ...(isPrinterDevice ? [{ label: "Toner Model", value: "TonerModel" }, { label: "Current User", value: "CurrentUser" }, { label: "Rent", value: "RentOrNot" }] : []),
     ...(isSwitchDevice ? [{ label: "Exact Location", value: "ExactLocation" }, { label: "IT Ref No", value: "ITReferenceNumber" }, { label: "Vendor", value: "Vendor" }] : []),
@@ -547,7 +552,8 @@ function DevicePage({ title, deviceType }) {
         <form className="device-form pro-card" onSubmit={saveDevice}>
           {needsEmployee && (<>{renderEmployeeAutocomplete("EmployeeName", "Search Employee Name")}{renderEmployeeAutocomplete("EPFNumber", "Search EPF Number")}</>)}
           {!hideDepartment && renderDepartmentInput()}
-          {!hideDeviceName && renderTextInput("DeviceName", "Device Name")}
+          {/* ✅ Dongles (SIM) page eke placeholder eka "Vendor" widihata පෙන්නනවා, field name eka (DeviceName) wenas venne නෑ - DB save eka break venne නෑ */}
+          {!hideDeviceName && renderTextInput("DeviceName", deviceNameLabel)}
           {renderTextInput("PONumber", "PO Number")}
           {isPrinterDevice && (<>{renderTextInput("TonerModel", "Toner Model")}{renderTextInput("CurrentUser", "Current User")}{renderSelect("RentOrNot", ["Rent", "Not Rent"], "Rent or Not")}</>)}
           {(isTabletDevice || isSIMDevice) && (<>{renderTextInput("SIMNumber", "SIM Number")}{isSIMDevice && renderSelect("SIMType", ["Data Only", "Mobile"], "Select SIM Type")}</>)}
