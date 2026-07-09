@@ -5,18 +5,16 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
 const multer = require("multer");
-const streamifier = require("streamifier");
 
 const { protect, adminOnly } = require("../middleware/authMiddleware");
 const User = require("../models/User");
 const Employee = require("../models/Employee");
 const verifyMicrosoftToken = require("../middleware/microsoftVerify");
-const cloudinary = require("../config/cloudinaryConfig");
 
 /* =========================================
    MULTER — memory storage (no local disk)
-   Files are streamed directly to Cloudinary,
-   so nothing is lost when the server restarts.
+   Files are converted to Base64 and stored
+   directly in MongoDB (no external service).
 ========================================= */
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -31,22 +29,10 @@ const upload = multer({
   },
 });
 
-// ✅ Cloudinary stream upload helper (profile pictures)
-const uploadProfilePictureToCloudinary = (fileBuffer, originalName) => {
-  return new Promise((resolve, reject) => {
-    const uploadStream = cloudinary.uploader.upload_stream(
-      {
-        folder: "profile_pictures",
-        resource_type: "image",
-        public_id: `${Date.now()}_${originalName.replace(/\.[^/.]+$/, "")}`,
-      },
-      (error, result) => {
-        if (error) reject(error);
-        else resolve(result);
-      }
-    );
-    streamifier.createReadStream(fileBuffer).pipe(uploadStream);
-  });
+// ✅ Converts an uploaded image buffer into a Base64 data URI
+// so it can be stored directly in the User document's profilePicture field.
+const bufferToDataUri = (fileBuffer, mimetype) => {
+  return `data:${mimetype};base64,${fileBuffer.toString("base64")}`;
 };
 
 /* =========================================
@@ -175,11 +161,7 @@ router.post(
 
       let profilePictureUrl = "";
       if (req.file) {
-        const result = await uploadProfilePictureToCloudinary(
-          req.file.buffer,
-          req.file.originalname
-        );
-        profilePictureUrl = result.secure_url;
+        profilePictureUrl = bufferToDataUri(req.file.buffer, req.file.mimetype);
       }
 
       const user = new User({
@@ -272,8 +254,8 @@ router.post("/login", async (req, res) => {
     const token = createAdminToken(user);
 
     user.lastLogin = new Date();
-user.loginCount = (user.loginCount || 0) + 1;
-await user.save();
+    user.loginCount = (user.loginCount || 0) + 1;
+    await user.save();
 
     res.json({
       message: "Admin login successful",
@@ -364,8 +346,8 @@ router.post("/microsoft-login", async (req, res) => {
     console.log("MICROSOFT EMPLOYEE APPROVED:", normalizedEmail);
 
     employee.lastLogin = new Date();
-employee.loginCount = (employee.loginCount || 0) + 1;
-await employee.save();
+    employee.loginCount = (employee.loginCount || 0) + 1;
+    await employee.save();
 
     const token = createEmployeeToken(employee);
 
@@ -498,11 +480,7 @@ router.put(
       }
 
       if (req.file) {
-        const result = await uploadProfilePictureToCloudinary(
-          req.file.buffer,
-          req.file.originalname
-        );
-        updateData.profilePicture = result.secure_url;
+        updateData.profilePicture = bufferToDataUri(req.file.buffer, req.file.mimetype);
       }
 
       const updatedUser = await User.findByIdAndUpdate(
