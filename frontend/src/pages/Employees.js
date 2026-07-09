@@ -6,6 +6,8 @@ const API_URL =
     ? "http://localhost:5000"
     : "https://it-device-tracker.onrender.com";
 
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+
 function Employees() {
   const storedUser = localStorage.getItem("user");
   const user = storedUser ? JSON.parse(storedUser) : null;
@@ -35,10 +37,11 @@ function Employees() {
   const [newLocation, setNewLocation] = useState("");
   const [editId, setEditId] = useState(null);
 
-  // ✅ Attachment modal state
+  // Attachment modal state
   const [attachmentModalEmployee, setAttachmentModalEmployee] = useState(null);
   const [attachmentFile, setAttachmentFile] = useState(null);
   const [attachmentUploading, setAttachmentUploading] = useState(false);
+  const [attachmentLoading, setAttachmentLoading] = useState(false);
   const [attachmentError, setAttachmentError] = useState("");
 
   const getHeaders = () => ({
@@ -235,20 +238,37 @@ function Employees() {
     emp.FullName || emp.fullName ||
     `${emp.FirstName || emp.firstName || ""} ${emp.SecondName || emp.secondName || ""}`.trim();
 
-  /* ═══════════════════════════════════════════
-     ✅ ATTACHMENT FUNCTIONS
-  ═══════════════════════════════════════════ */
-
-  const openAttachmentModal = (emp) => {
+  const openAttachmentModal = async (emp) => {
     setAttachmentModalEmployee(emp);
     setAttachmentFile(null);
     setAttachmentError("");
+    setAttachmentLoading(true);
+    try {
+      const res = await axios.get(`${API_URL}/api/employees/${emp._id}/attachments`, getHeaders());
+      setAttachmentModalEmployee((prev) => (prev ? { ...prev, Attachments: res.data } : prev));
+    } catch (err) {
+      setAttachmentError(err.response?.data?.message || err.message || "Failed to load attachments");
+    } finally {
+      setAttachmentLoading(false);
+    }
   };
 
   const closeAttachmentModal = () => {
     setAttachmentModalEmployee(null);
     setAttachmentFile(null);
     setAttachmentError("");
+  };
+
+  const handleAttachmentFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (file && file.size > MAX_FILE_SIZE) {
+      setAttachmentError("File exceeds 5MB limit");
+      setAttachmentFile(null);
+      e.target.value = "";
+      return;
+    }
+    setAttachmentError("");
+    setAttachmentFile(file);
   };
 
   const uploadAttachment = async () => {
@@ -269,11 +289,9 @@ function Employees() {
         getFileHeaders()
       );
 
-      // Update modal employee's attachments locally
       setAttachmentModalEmployee(res.data.employee);
       setAttachmentFile(null);
 
-      // Refresh main employee list too
       await fetchEmployees();
     } catch (err) {
       setAttachmentError(err.response?.data?.message || err.message || "Upload failed");
@@ -290,7 +308,6 @@ function Employees() {
         getHeaders()
       );
 
-      // Update modal locally
       setAttachmentModalEmployee((prev) => ({
         ...prev,
         Attachments: prev.Attachments.filter((a) => a._id !== attachmentId),
@@ -303,11 +320,97 @@ function Employees() {
   };
 
   const getFileIcon = (fileType) => {
-    if (!fileType) return "📄";
-    if (fileType.includes("pdf")) return "📕";
-    if (fileType.includes("image")) return "🖼️";
-    if (fileType.includes("word") || fileType.includes("document")) return "📘";
-    return "📄";
+    if (!fileType) return "FILE";
+    if (fileType.indexOf("pdf") !== -1) return "PDF";
+    if (fileType.indexOf("image") !== -1) return "IMG";
+    if (fileType.indexOf("word") !== -1 || fileType.indexOf("document") !== -1) return "DOC";
+    return "FILE";
+  };
+
+  const getAttachmentDataUrl = (att) => {
+    return "data:" + att.fileType + ";base64," + att.fileData;
+  };
+
+  const formatFileSize = (bytes) => {
+    if (!bytes) return "";
+    if (bytes < 1024) return bytes + " B";
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+    return (bytes / (1024 * 1024)).toFixed(2) + " MB";
+  };
+
+  // Renders one attachment row. Kept as a separate function (not inline JSX)
+  // so the JSX tree stays simple and easy to debug.
+  const renderAttachmentRow = (att) => {
+    const hasData = Boolean(att.fileData);
+    const sizeLabel = att.fileSize ? formatFileSize(att.fileSize) : "";
+    const dateLabel = att.uploadedAt ? new Date(att.uploadedAt).toLocaleDateString() : "";
+
+    const linkStyle = {
+      fontSize: "13px",
+      fontWeight: 500,
+      color: "#1f2937",
+      textDecoration: "none",
+      whiteSpace: "nowrap",
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+      display: "block",
+      maxWidth: "260px",
+    };
+
+    let nameElement;
+    if (hasData) {
+      const dataUrl = getAttachmentDataUrl(att);
+      nameElement = (
+        <a href={dataUrl} target="_blank" rel="noopener noreferrer" download={att.fileName} style={linkStyle}>
+          {att.fileName}
+        </a>
+      );
+    } else {
+      nameElement = <span style={linkStyle}>{att.fileName}</span>;
+    }
+
+    return (
+      <div
+        key={att._id}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "10px 14px",
+          border: "1px solid #e5e7eb",
+          borderRadius: "8px",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", overflow: "hidden" }}>
+          <span
+            style={{
+              fontSize: "10px",
+              fontWeight: 700,
+              color: "#6b7280",
+              background: "#f3f4f6",
+              padding: "3px 6px",
+              borderRadius: "4px",
+            }}
+          >
+            {getFileIcon(att.fileType)}
+          </span>
+          <div style={{ overflow: "hidden" }}>
+            {nameElement}
+            <div style={{ fontSize: "11px", color: "#9ca3af" }}>
+              {dateLabel}{sizeLabel ? " - " + sizeLabel : ""}
+            </div>
+          </div>
+        </div>
+        <button
+          type="button"
+          className="btn-delete"
+          onClick={() => deleteAttachment(att._id)}
+          style={{ fontSize: "12px", padding: "4px 10px", flexShrink: 0 }}
+        >
+          Delete
+        </button>
+      </div>
+    );
   };
 
   return (
@@ -337,12 +440,16 @@ function Employees() {
 
           <select name="Department" value={form.Department} onChange={handleChange} required>
             <option value="">Select Department</option>
-            {departments.map((dep) => <option key={dep._id || dep.Name} value={dep.Name}>{dep.Name}</option>)}
+            {departments.map((dep) => (
+              <option key={dep._id || dep.Name} value={dep.Name}>{dep.Name}</option>
+            ))}
           </select>
 
           <select name="Location" value={form.Location} onChange={handleChange} required>
             <option value="">Select Location</option>
-            {locations.map((loc) => <option key={loc._id || loc.Name} value={loc.Name}>{loc.Name}</option>)}
+            {locations.map((loc) => (
+              <option key={loc._id || loc.Name} value={loc.Name}>{loc.Name}</option>
+            ))}
           </select>
 
           <select name="Status" value={form.Status} onChange={handleChange}>
@@ -366,9 +473,12 @@ function Employees() {
             <>
               <input name="AdminUsername" type="text" placeholder="Admin Username" value={form.AdminUsername} onChange={handleChange} required />
               <input
-                name="AdminPassword" type="password"
+                name="AdminPassword"
+                type="password"
                 placeholder={editId ? "Admin Password (leave blank to keep old password)" : "Admin Password"}
-                value={form.AdminPassword} onChange={handleChange} required={!editId}
+                value={form.AdminPassword}
+                onChange={handleChange}
+                required={!editId}
               />
             </>
           )}
@@ -378,53 +488,81 @@ function Employees() {
         </form>
       )}
 
-      {/* ═══════════════════════════════════════════
-          ✅ ATTACHMENT MODAL
-      ═══════════════════════════════════════════ */}
       {attachmentModalEmployee && (
-        <div style={{
-          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-          background: "rgba(0,0,0,0.5)", zIndex: 1000,
-          display: "flex", alignItems: "center", justifyContent: "center",
-        }}>
-          <div style={{
-            background: "#fff", borderRadius: "12px", padding: "28px",
-            maxWidth: "520px", width: "90%", maxHeight: "85vh", overflowY: "auto",
-            boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
-          }}>
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.5)",
+            zIndex: 1000,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: "12px",
+              padding: "28px",
+              maxWidth: "520px",
+              width: "90%",
+              maxHeight: "85vh",
+              overflowY: "auto",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
+            }}
+          >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-              <h2 style={{ margin: 0 }}>📎 Attachments</h2>
-              <button onClick={closeAttachmentModal}
-                style={{ background: "none", border: "none", fontSize: "22px", cursor: "pointer", color: "#6b7280" }}>
-                ✕
+              <h2 style={{ margin: 0 }}>Attachments</h2>
+              <button
+                onClick={closeAttachmentModal}
+                style={{ background: "none", border: "none", fontSize: "22px", cursor: "pointer", color: "#6b7280" }}
+              >
+                X
               </button>
             </div>
+
             <p style={{ color: "#6b7280", marginBottom: "20px", fontSize: "14px" }}>
-              {getFullName(attachmentModalEmployee)} — EPF: {attachmentModalEmployee.EPFNumber}
+              {getFullName(attachmentModalEmployee)} - EPF: {attachmentModalEmployee.EPFNumber}
             </p>
 
             {attachmentError && (
-              <div style={{
-                background: "#fee2e2", border: "1px solid #fca5a5", color: "#991b1b",
-                padding: "10px 14px", borderRadius: "8px", marginBottom: "16px", fontSize: "13px",
-              }}>
-                ⚠️ {attachmentError}
+              <div
+                style={{
+                  background: "#fee2e2",
+                  border: "1px solid #fca5a5",
+                  color: "#991b1b",
+                  padding: "10px 14px",
+                  borderRadius: "8px",
+                  marginBottom: "16px",
+                  fontSize: "13px",
+                }}
+              >
+                {attachmentError}
               </div>
             )}
 
-            {/* Upload section */}
-            <div style={{
-              border: "2px dashed #d1d5db", borderRadius: "10px", padding: "20px",
-              textAlign: "center", marginBottom: "20px", background: "#f9fafb",
-            }}>
+            <div
+              style={{
+                border: "2px dashed #d1d5db",
+                borderRadius: "10px",
+                padding: "20px",
+                textAlign: "center",
+                marginBottom: "20px",
+                background: "#f9fafb",
+              }}
+            >
               <input
                 type="file"
                 accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                onChange={(e) => setAttachmentFile(e.target.files[0])}
+                onChange={handleAttachmentFileSelect}
                 style={{ marginBottom: "12px" }}
               />
               <div style={{ fontSize: "12px", color: "#9ca3af", marginBottom: "12px" }}>
-                PDF, JPG, PNG, DOC, DOCX — Max 10MB
+                PDF, JPG, PNG, DOC, DOCX - Max 5MB
               </div>
               <button
                 type="button"
@@ -437,50 +575,21 @@ function Employees() {
               </button>
             </div>
 
-            {/* Attachment list */}
             <h3 style={{ fontSize: "15px", marginBottom: "12px" }}>
               Uploaded Files ({(attachmentModalEmployee.Attachments || []).length})
             </h3>
 
-            {(attachmentModalEmployee.Attachments || []).length === 0 ? (
+            {attachmentLoading && (
+              <p style={{ color: "#9ca3af", fontSize: "14px" }}>Loading attachments...</p>
+            )}
+
+            {!attachmentLoading && (attachmentModalEmployee.Attachments || []).length === 0 && (
               <p style={{ color: "#9ca3af", fontSize: "14px" }}>No attachments uploaded yet.</p>
-            ) : (
+            )}
+
+            {!attachmentLoading && (attachmentModalEmployee.Attachments || []).length > 0 && (
               <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                {attachmentModalEmployee.Attachments.map((att) => (
-                  <div key={att._id} style={{
-                    display: "flex", alignItems: "center", justifyContent: "space-between",
-                    padding: "10px 14px", border: "1px solid #e5e7eb", borderRadius: "8px",
-                  }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "10px", overflow: "hidden" }}>
-                      <span style={{ fontSize: "20px" }}>{getFileIcon(att.fileType)}</span>
-                      <div style={{ overflow: "hidden" }}>
-                        <a
-                          href={att.fileUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{
-                            fontSize: "13px", fontWeight: 500, color: "#1f2937",
-                            textDecoration: "none", whiteSpace: "nowrap",
-                            overflow: "hidden", textOverflow: "ellipsis", display: "block", maxWidth: "260px",
-                          }}
-                        >
-                          {att.fileName}
-                        </a>
-                        <span style={{ fontSize: "11px", color: "#9ca3af" }}>
-                          {att.uploadedAt ? new Date(att.uploadedAt).toLocaleDateString() : ""}
-                        </span>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      className="btn-delete"
-                      onClick={() => deleteAttachment(att._id)}
-                      style={{ fontSize: "12px", padding: "4px 10px", flexShrink: 0 }}
-                    >
-                      Delete
-                    </button>
-                  </div>
-                ))}
+                {attachmentModalEmployee.Attachments.map(renderAttachmentRow)}
               </div>
             )}
           </div>
@@ -513,12 +622,13 @@ function Employees() {
                 <td>{emp.CompanyEmail || emp.companyEmail || "-"}</td>
                 <td><span className="status-pill Active">{emp.AccessRole || emp.accessRole || "user"}</span></td>
                 <td>
-                  {emp.CanLogin === false || emp.canLogin === false
-                    ? <span className="status-pill Inactive">Disabled</span>
-                    : <span className="status-pill Active">Enabled</span>}
+                  {emp.CanLogin === false || emp.canLogin === false ? (
+                    <span className="status-pill Inactive">Disabled</span>
+                  ) : (
+                    <span className="status-pill Active">Enabled</span>
+                  )}
                 </td>
 
-                {/* ✅ Attachments button */}
                 {isAdmin && (
                   <td>
                     <button
@@ -526,11 +636,31 @@ function Employees() {
                       onClick={() => openAttachmentModal(emp)}
                       style={{
                         background: (emp.Attachments || []).length > 0 ? "#2563eb" : "#6b7280",
-                        color: "#fff", border: "none", borderRadius: "6px",
-                        padding: "5px 12px", cursor: "pointer", fontSize: "12px", fontWeight: 500,
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: "6px",
+                        padding: "5px 12px",
+                        cursor: "pointer",
+                        fontSize: "12px",
+                        fontWeight: 500,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "5px",
                       }}
                     >
-                      📎 {(emp.Attachments || []).length}
+                      <svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" />
+                      </svg>
+                      {(emp.Attachments || []).length}
                     </button>
                   </td>
                 )}

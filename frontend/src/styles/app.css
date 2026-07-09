@@ -1085,3 +1085,40 @@ html, body {
 .table-card {
   padding: 0 !important;
 }
+
+/* ===== GUI Interface Builder — fix field rows overflowing the card ===== */
+.interface-builder-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.interface-builder-form .name-desc-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.interface-builder-form input,
+.interface-builder-form textarea {
+  width: 100%;
+}
+
+.interface-builder-form textarea {
+  height: 90px;
+  resize: none;
+}
+
+.interface-builder-form .field-builder-card {
+  width: 100%;
+}
+
+.interface-builder-form h3 {
+  margin-top: 4px;
+}
+
+@media (max-width: 900px) {
+  .interface-builder-form .name-desc-row {
+    grid-template-columns: 1fr;
+  }
+}

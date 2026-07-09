@@ -172,18 +172,20 @@ function InterfaceBuilder() {
         <span className="device-count">Create custom device pages</span>
       </div>
 
-      <form className="pro-card device-form" onSubmit={saveTemplate}>
-        <input
-          placeholder="Interface Name, e.g. CCTV Camera"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
+      <form className="pro-card device-form interface-builder-form" onSubmit={saveTemplate}>
+        <div className="name-desc-row">
+          <input
+            placeholder="Interface Name, e.g. CCTV Camera"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
 
-        <textarea
-          placeholder="Description"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-        />
+          <textarea
+            placeholder="Description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+          />
+        </div>
 
         <h3>Fields</h3>
 
