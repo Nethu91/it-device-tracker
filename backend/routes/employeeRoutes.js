@@ -3,23 +3,21 @@ const router = express.Router();
 
 const bcrypt = require("bcryptjs");
 const multer = require("multer");
-const streamifier = require("streamifier");
 
 const Employee   = require("../models/Employee");
 const Department = require("../models/Department");
 const Location   = require("../models/Location");
 const User       = require("../models/User");
 const Device     = require("../models/Device");
-const cloudinary = require("../config/cloudinaryConfig");
 
 const { protect, adminOnly } = require("../middleware/authMiddleware");
 
 /* =========================================
-   MULTER — memory storage 
+   MULTER — memory storage (max 5MB)
 ========================================= */
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB max
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max
   fileFilter: (req, file, cb) => {
     const allowedTypes = [
       "application/pdf",
@@ -110,27 +108,6 @@ const createOrUpdateAdminAccount = async ({
   await User.findOneAndUpdate({ email: CompanyEmail }, adminData, { upsert: true, new: true });
 };
 
-// ✅ Cloudinary stream upload helper
-const uploadToCloudinary = (fileBuffer, originalName) => {
-  return new Promise((resolve, reject) => {
-    const isPdfOrDoc = !originalName.match(/\.(jpg|jpeg|png)$/i);
-
-    const uploadStream = cloudinary.uploader.upload_stream(
-      {
-        folder: "employee_attachments",
-        resource_type: isPdfOrDoc ? "raw" : "image", // PDFs/DOCs → raw, images → image
-        public_id: `${Date.now()}_${originalName.replace(/\.[^/.]+$/, "")}`,
-      },
-      (error, result) => {
-        if (error) reject(error);
-        else resolve(result);
-      }
-    );
-    streamifier.createReadStream(fileBuffer).pipe(uploadStream);
-  });
-};
-
-
 const releaseDevicesForEmployee = async (epfNumber, employeeName) => {
   if (!epfNumber) return { releasedCount: 0 };
 
@@ -163,8 +140,6 @@ const releaseDevicesForEmployee = async (epfNumber, employeeName) => {
 
   return { releasedCount };
 };
-
-
 
 router.post("/departments", protect, adminOnly, async (req, res) => {
   try {
@@ -289,9 +264,12 @@ router.post("/", protect, adminOnly, async (req, res) => {
   }
 });
 
+// ✅ GET ALL — excludes heavy fileData field for fast list loading
 router.get("/", protect, async (req, res) => {
   try {
-    const employees = await Employee.find().sort({ createdAt: -1 });
+    const employees = await Employee.find()
+      .select("-Attachments.fileData")
+      .sort({ createdAt: -1 });
     res.json(employees);
   } catch (error) {
     console.log("Employee fetch error:", error);
@@ -316,7 +294,7 @@ router.get("/search/:keyword", protect, async (req, res) => {
     if (!isNaN(keyword)) {
       query.$or.push({ EPFNumber: Number(keyword) });
     }
-    const employees = await Employee.find(query).limit(10);
+    const employees = await Employee.find(query).select("-Attachments.fileData").limit(10);
     res.json(employees);
   } catch (error) {
     console.log("Employee search error:", error);
@@ -365,7 +343,7 @@ router.put("/:id", protect, adminOnly, async (req, res) => {
         CompanyEmail, AccessRole, CanLogin,
       },
       { new: true }
-    );
+    ).select("-Attachments.fileData");
 
     if (!updatedEmployee) {
       return res.status(404).json({ message: "Employee not found" });
@@ -412,6 +390,7 @@ router.delete("/:id", protect, adminOnly, async (req, res) => {
 
 /* =========================================
    ATTACHMENTS — Admin only
+   Stored directly in MongoDB as Base64 (no Cloudinary)
 ========================================= */
 
 // ✅ UPLOAD ATTACHMENT
@@ -431,32 +410,33 @@ router.post(
         return res.status(404).json({ message: "Employee not found" });
       }
 
-      const result = await uploadToCloudinary(req.file.buffer, req.file.originalname);
-
       const attachment = {
         fileName: req.file.originalname,
-        fileUrl: result.secure_url,
-        publicId: result.public_id,
+        fileData: req.file.buffer.toString("base64"),
         fileType: req.file.mimetype,
+        fileSize: req.file.size,
         uploadedAt: new Date(),
       };
 
       employee.Attachments.push(attachment);
       await employee.save();
 
+      // Return employee WITH fileData so the modal can render it immediately
       res.status(201).json({
         message: "Attachment uploaded successfully",
-        attachment,
         employee,
       });
     } catch (error) {
       console.log("Attachment upload error:", error);
+      if (error.message && error.message.includes("File too large")) {
+        return res.status(400).json({ message: "File exceeds 5MB limit" });
+      }
       res.status(500).json({ message: "Failed to upload attachment", error: error.message });
     }
   }
 );
 
-// ✅ GET ALL ATTACHMENTS for an employee
+// ✅ GET ALL ATTACHMENTS for an employee (includes fileData — used to open the modal)
 router.get("/:id/attachments", protect, adminOnly, async (req, res) => {
   try {
     const employee = await Employee.findById(req.params.id);
@@ -481,17 +461,6 @@ router.delete("/:id/attachments/:attachmentId", protect, adminOnly, async (req, 
     const attachment = employee.Attachments.id(req.params.attachmentId);
     if (!attachment) {
       return res.status(404).json({ message: "Attachment not found" });
-    }
-
-    
-    const isRaw = !attachment.fileType.startsWith("image/");
-    try {
-      await cloudinary.uploader.destroy(attachment.publicId, {
-        resource_type: isRaw ? "raw" : "image",
-      });
-    } catch (cloudErr) {
-      console.log("Cloudinary delete warning:", cloudErr.message);
-      
     }
 
     employee.Attachments.pull(req.params.attachmentId);

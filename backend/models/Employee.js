@@ -63,13 +63,14 @@ const employeeSchema = new mongoose.Schema(
     },
 
     // ✅ Attachments — Admin only upload (CVs, ID copies, certificates, etc.)
+    // Stored directly in MongoDB as Base64 (no Cloudinary) — max 5MB per file
     Attachments: {
       type: [
         {
           fileName:   { type: String, default: "" },
-          fileUrl:    { type: String, default: "" },
-          publicId:   { type: String, default: "" }, // Cloudinary public_id — needed for delete
-          fileType:   { type: String, default: "" }, // pdf, jpg, png, etc.
+          fileData:   { type: String, default: "" }, // Base64 encoded file content
+          fileType:   { type: String, default: "" }, // MIME type e.g. image/png, application/pdf
+          fileSize:   { type: Number, default: 0 },   // size in bytes
           uploadedAt: { type: Date, default: Date.now },
         },
       ],
