@@ -60,10 +60,11 @@ router.post("/", protect, async (req, res) => {
 /* =========================================
    GET ALL CUSTOM DEVICES
    Normal users + Admin users can view
+   ✅ Disposed devices excluded
 ========================================= */
 router.get("/", protect, async (req, res) => {
   try {
-    const devices = await CustomDevice.find()
+    const devices = await CustomDevice.find({ isDisposed: { $ne: true } })
       .populate("templateId")
       .sort({ createdAt: -1 });
 
@@ -79,13 +80,38 @@ router.get("/", protect, async (req, res) => {
 });
 
 /* =========================================
+   GET DISPOSED CUSTOM DEVICES (ADMIN ONLY)
+   ✅ Must be declared before "/:id" and
+   "/template/:templateId" so Express doesn't
+   treat "disposed" as an :id / :templateId
+========================================= */
+router.get("/disposed", protect, adminOnly, async (req, res) => {
+  try {
+    const devices = await CustomDevice.find({ isDisposed: true })
+      .populate("templateId")
+      .sort({ disposedAt: -1 });
+
+    res.json(devices);
+  } catch (error) {
+    console.error("Fetch disposed custom devices error:", error);
+
+    res.status(500).json({
+      message: "Failed to fetch disposed custom devices",
+      error: error.message,
+    });
+  }
+});
+
+/* =========================================
    GET CUSTOM DEVICES BY TEMPLATE
    Normal users + Admin users can view
+   ✅ Disposed devices excluded
 ========================================= */
 router.get("/template/:templateId", protect, async (req, res) => {
   try {
     const devices = await CustomDevice.find({
       templateId: req.params.templateId,
+      isDisposed: { $ne: true },
     }).sort({ createdAt: -1 });
 
     res.json(devices);
@@ -94,6 +120,68 @@ router.get("/template/:templateId", protect, async (req, res) => {
 
     res.status(500).json({
       message: "Failed to load custom devices",
+      error: error.message,
+    });
+  }
+});
+
+/* =========================================
+   DISPOSE CUSTOM DEVICE (ADMIN ONLY)
+========================================= */
+router.post("/dispose/:id", protect, adminOnly, async (req, res) => {
+  try {
+    const { reason } = req.body;
+    const device = await CustomDevice.findById(req.params.id);
+
+    if (!device) {
+      return res.status(404).json({ message: "Custom device not found" });
+    }
+    if (device.isDisposed) {
+      return res.status(400).json({ message: "Device already disposed" });
+    }
+
+    device.isDisposed     = true;
+    device.disposedAt     = new Date();
+    device.disposalReason = reason || "5 Year Lifecycle Completed";
+    device.status         = "Retired";
+
+    await device.save();
+
+    res.json({ message: "Custom device disposed successfully", success: true, device });
+  } catch (error) {
+    console.error("Dispose custom device error:", error);
+
+    res.status(500).json({
+      message: "Failed to dispose custom device",
+      error: error.message,
+    });
+  }
+});
+
+/* =========================================
+   RESTORE CUSTOM DEVICE (ADMIN ONLY)
+========================================= */
+router.post("/restore/:id", protect, adminOnly, async (req, res) => {
+  try {
+    const device = await CustomDevice.findById(req.params.id);
+
+    if (!device) {
+      return res.status(404).json({ message: "Custom device not found" });
+    }
+
+    device.isDisposed     = false;
+    device.disposedAt     = null;
+    device.disposalReason = "";
+    device.status         = "Available";
+
+    await device.save();
+
+    res.json({ message: "Custom device restored successfully", success: true });
+  } catch (error) {
+    console.error("Restore custom device error:", error);
+
+    res.status(500).json({
+      message: "Failed to restore custom device",
       error: error.message,
     });
   }

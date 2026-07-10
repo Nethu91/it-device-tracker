@@ -28,6 +28,20 @@ const customDeviceSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
     },
+
+    // ✅ Dispose fields — anith Device model eke pattern ekම
+    isDisposed: {
+      type: Boolean,
+      default: false,
+    },
+    disposedAt: {
+      type: Date,
+      default: null,
+    },
+    disposalReason: {
+      type: String,
+      default: "",
+    },
   },
   { timestamps: true }
 );

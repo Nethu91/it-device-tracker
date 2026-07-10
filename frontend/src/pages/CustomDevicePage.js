@@ -23,6 +23,10 @@ function CustomDevicePage() {
   const [ageAsOfDate, setAgeAsOfDate]           = useState("");
   const [error, setError]                       = useState("");
 
+  // ✅ Dispose modal state — anith devices wage
+  const [disposeReason, setDisposeReason]       = useState("");
+  const [disposeTargetId, setDisposeTargetId]   = useState(null);
+
   const getHeaders = () => ({
     headers: {
       Authorization: `Bearer ${localStorage.getItem("token")}`,
@@ -93,6 +97,15 @@ function CustomDevicePage() {
     return isNaN(date.getTime()) ? value : date.toISOString().slice(0, 10);
   };
 
+  // ✅ 5-year lifecycle check — anith devices wage ekම pattern eka
+  const isOver5Years = (device) => {
+    const ageDateField = getPreferredAgeDateField();
+    const dateValue = ageDateField ? device.data?.[ageDateField.name] : null;
+    if (!dateValue) return false;
+    const years = (new Date() - new Date(dateValue)) / (1000 * 60 * 60 * 24 * 365.25);
+    return years >= 5;
+  };
+
   /* ── Load templates ── */
   const loadTemplates = async () => {
     try {
@@ -119,7 +132,7 @@ function CustomDevicePage() {
       const all = Array.isArray(res.data) ? res.data : [];
 
       if (isAdmin) {
-        // ✅ Admin: සියලුම devices
+        // ✅ Admin: සියලුම devices (disposed backend eken already exclude wela)
         setDevices(all);
       } else {
         // ✅ User: createdBy field එකෙන් own devices පමණයි
@@ -219,6 +232,32 @@ function CustomDevicePage() {
     } catch (err) {
       console.error("Delete error:", err.response?.data || err.message);
       setError(err.response?.data?.message || "Failed to delete");
+    }
+  };
+
+  /* ── Dispose device ── */
+  const openDisposeModal = (id) => {
+    if (!isAdmin) { setError("Only admins can dispose records"); return; }
+    setDisposeTargetId(id);
+    setDisposeReason("");
+  };
+
+  const confirmDispose = async () => {
+    if (!disposeTargetId) return;
+    try {
+      await axios.post(
+        `${BASE_API}/custom-devices/dispose/${disposeTargetId}`,
+        { reason: disposeReason || "5 Year Lifecycle Completed" },
+        getHeaders()
+      );
+      setDisposeTargetId(null);
+      setDisposeReason("");
+      setError("");
+      await loadDevices(selectedTemplateId);
+    } catch (err) {
+      console.error("Dispose error:", err.response?.data || err.message);
+      setError(err.response?.data?.message || "Dispose failed");
+      setDisposeTargetId(null);
     }
   };
 
@@ -342,6 +381,42 @@ function CustomDevicePage() {
         </div>
       )}
 
+      {/* ── Dispose confirmation modal — anith devices wage ekම ── */}
+      {disposeTargetId && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ background: "#fff", borderRadius: "12px", padding: "32px", maxWidth: "440px", width: "90%", boxShadow: "0 8px 32px rgba(0,0,0,0.2)" }}>
+            <h2 style={{ marginBottom: "16px", color: "#991b1b" }}>🗑️ Dispose Device</h2>
+            <p style={{ marginBottom: "16px", color: "#374151" }}>This device will be moved to the Disposed Devices list and removed from the active inventory.</p>
+            <input
+              placeholder="Disposal reason (optional)"
+              value={disposeReason}
+              onChange={(e) => setDisposeReason(e.target.value)}
+              style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #d1d5db", marginBottom: "20px", fontSize: "14px" }}
+            />
+            <div style={{ display: "flex", gap: "12px" }}>
+              <button className="btn-delete" onClick={confirmDispose} style={{ flex: 1 }}>Confirm Dispose</button>
+              <button className="btn-cancel" onClick={() => setDisposeTargetId(null)} style={{ flex: 1 }}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Dashboard stat cards — only after an interface is selected ── */}
+      {selectedTemplate && (
+        <div className="device-dashboard-cards">
+          {[
+            { label: "Total",     count: devices.length },
+            { label: "Available", count: devices.filter((d) => (d.status || "Available") === "Available").length },
+            { label: "Assigned",  count: devices.filter((d) => d.status === "Assigned").length },
+            { label: "In Repair", count: devices.filter((d) => d.status === "In Repair").length },
+            { label: "Retired",   count: devices.filter((d) => d.status === "Retired").length },
+            { label: "Missing",   count: devices.filter((d) => d.status === "Missing").length },
+          ].map(({ label, count }) => (
+            <div className="device-stat-card" key={label}><h3>{label}</h3><p>{count}</p></div>
+          ))}
+        </div>
+      )}
+
       {/* ── Select interface ── */}
       <div className="pro-card">
         <h2>Select Interface</h2>
@@ -434,7 +509,7 @@ function CustomDevicePage() {
             </thead>
             <tbody>
               {filteredDevices.map((device, index) => (
-                <tr key={device._id}>
+                <tr key={device._id} style={isOver5Years(device) ? { background: "#fff7ed", borderLeft: "3px solid #f97316" } : {}}>
                   <td>{index + 1}</td>
                   {selectedTemplate.fields.map((field) => {
                     const value = device.data?.[field.name];
@@ -454,6 +529,19 @@ function CustomDevicePage() {
                     <td>
                       <button type="button" className="btn-edit" onClick={() => editCustomDevice(device)}>Edit</button>
                       <button type="button" className="btn-delete" onClick={() => deleteCustomDevice(device._id)}>Delete</button>
+                      <button
+                        type="button"
+                        onClick={() => openDisposeModal(device._id)}
+                        style={{
+                          background: isOver5Years(device) ? "#f97316" : "#6b7280",
+                          color: "#fff", border: "none", borderRadius: "6px",
+                          padding: "4px 10px", cursor: "pointer", fontSize: "12px",
+                          marginLeft: "4px", fontWeight: isOver5Years(device) ? 700 : 400,
+                        }}
+                        title={isOver5Years(device) ? "⚠️ Over 5 years — recommend dispose" : "Dispose device"}
+                      >
+                        {isOver5Years(device) ? "⚠️ Dispose" : "Dispose"}
+                      </button>
                     </td>
                   )}
                 </tr>

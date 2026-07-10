@@ -105,6 +105,19 @@ function Dashboard() {
     return devices.filter((d) => normalizedTypes.includes(normalizeType(d.DeviceType))).length;
   };
 
+  // ✅ Custom devices interface එක එක per template name group කරලා count කරනවා
+  // (e.g. "Firewall: 4") — anith device type cards wage ekම pattern eka
+  const customInterfaceCards = useMemo(() => {
+    const counts = {};
+    customDevices.forEach((d) => {
+      const name = d.templateName || "Custom Device";
+      counts[name] = (counts[name] || 0) + 1;
+    });
+    return Object.entries(counts)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([title, value]) => ({ title, value }));
+  }, [customDevices]);
+
   /* ── Search text builders ── */
   const searchText = (d) =>
     [
@@ -165,6 +178,8 @@ function Dashboard() {
   };
 
   /* ── Summary cards — Admin vs User ── */
+  // ✅ "Custom Devices" static card eka ain karala, e wenuwata interface
+  // ekක ekක per-name cards (customInterfaceCards) spread karanawa
   const adminSummaryCards = [
     { title: "Employees",            value: employees.length },
     { title: "Desktops",             value: countByType("Desktop", "Desktops") },
@@ -180,7 +195,7 @@ function Dashboard() {
     { title: "Smart Boards",         value: countByType("Smart Board", "Smart Boards") },
     { title: "Portable Trackers",    value: countByType("Portable Tracker", "Portable Trackers") },
     { title: "Fingerprint Machines", value: countByType("Fingerprint Machine", "Fingerprint Machines") },
-    { title: "Custom Devices",       value: customDevices.length },
+    ...customInterfaceCards,
   ];
 
   // ✅ User ට same categories — own devices count පමණයි
@@ -198,7 +213,7 @@ function Dashboard() {
     { title: "Smart Boards",         value: countByType("Smart Board", "Smart Boards") },
     { title: "Portable Trackers",    value: countByType("Portable Tracker", "Portable Trackers") },
     { title: "Fingerprint Machines", value: countByType("Fingerprint Machine", "Fingerprint Machines") },
-    { title: "Custom Devices",       value: customDevices.length },
+    ...customInterfaceCards,
   ];
 
   const summaryCards = isAdmin ? adminSummaryCards : userSummaryCards;
@@ -270,6 +285,10 @@ function Dashboard() {
         <div className="dashboard-card red">
           <h3>Missing</h3>
           <h1>{countByStatus("Missing")}</h1>
+        </div>
+        <div className="dashboard-card">
+          <h3>Retired</h3>
+          <h1>{countByStatus("Retired")}</h1>
         </div>
       </div>
 
